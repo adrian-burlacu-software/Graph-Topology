@@ -846,7 +846,7 @@ def written(function, text: str, file: str, case: str, goal: str = "",
     # sampled the same for the same function and case: said again, the
     # same answers
     import zlib
-    held = coder.get()
+    held = coder.big()
     held.torch.manual_seed(REPLAYED + zlib.crc32(asked.encode()))
     replies = held.write([asked], longest=900, samples=WRITTEN,
                          temperature=0.8)[0]

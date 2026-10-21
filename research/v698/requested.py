@@ -58,6 +58,13 @@ ASK = ("A programmer asked for this change to their Python project: "
 RUN = """import sys
 sys.path.insert(0, '.')
 _test_space = {{"__name__": "__test__"}}
+# the changed module's names in scope: a test that forgot to import Book
+# is still a test of it
+if {module!r}:
+    try:
+        exec("from " + {module!r} + " import *", _test_space)
+    except BaseException:
+        pass
 exec(compile({code!r}, "<test>", "exec"), _test_space)
 for _name, _one in list(_test_space.items()):
     if _name.startswith("test") and callable(_one):
@@ -85,14 +92,16 @@ def _copy(held, root: Path, changed: dict | None = None) -> None:
         target.write_text((changed or {}).get(path, text), encoding="utf-8")
 
 
-def _runs(root: Path, code: str) -> tuple:
+def _runs(root: Path, code: str, module: str = "") -> tuple:
     """(holds, why) of a test run in a project's copy -- `import pytest`
     left out (what it is for is not used here)."""
     code = "\n".join(line for line in code.splitlines()
                      if not re.match(r"\s*(import|from)\s+pytest\b", line))
     try:
         done = subprocess.run(
-            [sys.executable, "-I", "-c", RUN.format(code=code)], cwd=root,
+            [sys.executable, "-I", "-c", RUN.format(code=code,
+                                                    module=module)],
+            cwd=root,
             capture_output=True, text=True, timeout=SECONDS)
     except subprocess.TimeoutExpired:
         return False, f"ran past {SECONDS} s"
@@ -140,32 +149,33 @@ def _calls(tests: list, held, path: str) -> list:
                 func.attr if isinstance(func, ast.Attribute) else None
             if name not in names:
                 continue
-            try:
-                args = [ast.literal_eval(one) for one in node.args]
-            except (ValueError, SyntaxError):
-                continue
-            if node.keywords:
-                continue
-            said = f"__import__({module!r}, fromlist=['_']).{name}(" + \
-                ", ".join(map(repr, args)) + ")"
-            if said not in out:
+            # as written, of the function by its own name: run with the
+            # module's names in scope (`find_by_author([Book(1, 'a',
+            # 'URSULA', 1, 1)], 'ursula')` -- arguments of the project's
+            # own kinds, not literals alone)
+            called = ast.Call(func=ast.Name(id=name, ctx=ast.Load()),
+                              args=node.args, keywords=node.keywords)
+            said = ast.unparse(called)
+            if len(said) <= 300 and said not in out:
                 out.append(said)
     return out[:16]
 
 
 GIVES = """import sys, json
 sys.path.insert(0, '.')
+space = {{}}
+exec("from " + {module!r} + " import *", space)
 out = []
 for call in {calls!r}:
     try:
-        out.append(repr(eval(call))[:200])
+        out.append(repr(eval(call, space))[:200])
     except BaseException as bad:
         out.append(type(bad).__name__)
 print(json.dumps(out))
 """
 
 
-def _gives(root: Path, calls: list) -> tuple:
+def _gives(root: Path, calls: list, module: str = "") -> tuple:
     """What each call gives in a project's copy: (repr or the error's
     kind, ...)."""
     if not calls:
@@ -173,7 +183,8 @@ def _gives(root: Path, calls: list) -> tuple:
     import json
     try:
         done = subprocess.run(
-            [sys.executable, "-I", "-c", GIVES.format(calls=calls)],
+            [sys.executable, "-I", "-c", GIVES.format(calls=calls,
+                                                      module=module)],
             cwd=root, capture_output=True, text=True, timeout=SECONDS)
         return tuple(json.loads(done.stdout.strip().splitlines()[-1]))
     except (subprocess.TimeoutExpired, ValueError, IndexError):
@@ -210,12 +221,12 @@ def _now(held, path: str) -> list:
     root = Path(tempfile.mkdtemp(prefix="requested-"))
     try:
         _copy(held, root)
-        gives = _gives(root, calls)
+        gives = _gives(root, calls, _module(path))
     finally:
         shutil.rmtree(root, ignore_errors=True)
     out = []
     for call, given in zip(calls, gives):
-        shown = call.split(").", 1)[-1]
+        shown = call
         # a value given, not an error's name
         if given and not given[0].isupper() or \
                 given.startswith(("True", "False", "None")):
@@ -249,7 +260,7 @@ def inputs(statement: str, held, path: str) -> list:
                           text=held.files[path][:6000],
                           now=("Run as it is now:\n" + "\n".join(now) + "\n")
                           if now else "")
-    held_ = coder.get()
+    held_ = coder.big()
     held_.torch.manual_seed(zlib.crc32(asked.encode()))
     replies = held_.write([asked], longest=200, samples=INPUT_SAMPLES,
                           temperature=0.7)[0]
@@ -267,7 +278,7 @@ def tests(statement: str, held, path: str) -> list:
                        now=("Run as it is now, it gives:\n" + "\n".join(now)
                             + "\nAssert calls whose output the change "
                             "makes different.\n") if now else "")
-    held_ = coder.get()
+    held_ = coder.big()
     # sampled the same for the same request: the same tests each time
     held_.torch.manual_seed(zlib.crc32(asked.encode()))
     replies = held_.write([asked], longest=300, samples=TESTS,
@@ -314,10 +325,13 @@ def rewritten(statement: str, held, path: str, name: str | None) -> list:
         asked = REWRITE.format(statement=statement, path=path,
                                what="the file", before=text.rstrip("\n"),
                                whole="the whole file")
-    held_ = coder.get()
+    held_ = coder.big()
     held_.torch.manual_seed(zlib.crc32(asked.encode()))
-    replies = held_.write([asked], longest=900, samples=WRITTEN,
-                                temperature=0.7)[0]
+    # in two halves: twelve answers of 900 at once ran the card out
+    replies = []
+    for _ in range(2):
+        replies += held_.write([asked], longest=900, samples=WRITTEN // 2,
+                               temperature=0.7)[0]
     out = []
     for reply in replies:
         code = commits._code_of(reply)
@@ -331,7 +345,9 @@ def rewritten(statement: str, held, path: str, name: str | None) -> list:
                 compile(changed, path, "exec")
             except SyntaxError:
                 changed = None
-        if changed and changed != text and changed not in out:
+        # each answer kept, the same as another too: answers written apart
+        # writing the same change is what chooses it (`fixing`)
+        if changed and changed != text:
             out.append(changed)
     return out
 
@@ -351,7 +367,7 @@ def checker(statement: str, held, path: str) -> dict:
         _copy(held, root)
         kept, left = [], []
         for code in written:
-            holds, why = _runs(root, code)
+            holds, why = _runs(root, code, _module(path))
             # a test that cannot be read is no test; one the project
             # already passes says nothing of the change
             if "SyntaxError" in why or "IndentationError" in why:
@@ -375,12 +391,9 @@ def checker(statement: str, held, path: str) -> dict:
         except Exception:                       # noqa: BLE001
             chosen = []
         calls = _calls(written + chosen, held, path)
-        original = _gives(root, calls)
+        original = _gives(root, calls, _module(path))
     finally:
         shutil.rmtree(root, ignore_errors=True)
-    if not kept and not calls:
-        return {"verify": None, "tests": written, "left": left,
-                "why": "no test tells the project from the change"}
     need = max(1, (len(kept) + 1) // 2)
 
     def verify(changed: str) -> str:
@@ -398,8 +411,8 @@ def checker(statement: str, held, path: str) -> dict:
             own_ok = all(_test_file(place, one) for one in own)
             # (tuples: grouped by, and said as they are)
             passed = tuple(at for at, code in enumerate(kept)
-                           if _runs(place, code)[0]) if own_ok else ()
-            gives = _gives(place, calls) if own_ok else ()
+                           if _runs(place, code, _module(path))[0]) if own_ok else ()
+            gives = _gives(place, calls, _module(path)) if own_ok else ()
         finally:
             shutil.rmtree(place, ignore_errors=True)
         return own_ok, passed, gives
@@ -414,17 +427,30 @@ def checker(statement: str, held, path: str) -> dict:
             broken = [one for one in own if not _test_file(place, one)]
             if broken:
                 return f"it breaks the project's tests: {', '.join(broken)}"
-            passed = sum(1 for code in kept if _runs(place, code)[0])
+            passed = sum(1 for code in kept if _runs(place, code, _module(path))[0])
         finally:
             shutil.rmtree(place, ignore_errors=True)
         if passed >= least:
             return ""
         return (f"{passed} of {len(kept)} tests of what was asked hold "
                 f"(at least {least} must)")
+    # (a change made, not guessed -- a rename -- is checked by the project's
+    # own tests and, where any test of the request is kept, one of them)
+    if not kept and not calls:
+        return {"verify": None, "score": None, "verify files": verify_files,
+                "tests": written, "kept": [], "left": left, "own": own,
+                "need": need, "calls": [], "original": (),
+                "why": "no test tells the project from the change"}
     return {"verify": verify if kept else None,
-            "verify files": verify_files if kept else None, "score": score,
+            "verify files": verify_files, "score": score,
             "tests": written, "kept": kept, "left": left, "own": own,
             "need": need, "calls": calls, "original": original}
+
+
+def code_shaped(name: str) -> bool:
+    """Whether a name is written as code writes names and words are not:
+    `clean_isbn`, `cleanIsbn`, `v2` -- not `to`, `everywhere`."""
+    return "_" in name.strip("_") or any(one.isdigit() for one in name) or         bool(re.search(r"[a-z][A-Z]", name))
 
 
 def renames(statement: str, held) -> list:

@@ -275,6 +275,13 @@ class RequestedTests(unittest.TestCase):
         whole = {"own ok": True, "passes": (0, 2), "gives": ("'978014'",)}
         self.assertEqual(_agreed_by_tests([strip, whole], 4), [])
 
+    def test_a_name_written_as_code(self):
+        from research.v698.requested import code_shaped
+        self.assertTrue(all(map(code_shaped, ("clean_isbn", "cleanIsbn",
+                                              "v2", "read_all"))))
+        self.assertFalse(any(map(code_shaped, ("to", "everywhere", "Volume",
+                                               "_private"))))
+
     def test_a_rename_everywhere_it_is_used(self):
         from unittest import mock
         from research.v698 import requested

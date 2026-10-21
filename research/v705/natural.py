@@ -30,7 +30,9 @@ def scores(sources: list, held=None, tokens: int = TOKENS) -> list:
     server's own editor where the code model has no room beside it."""
     import torch
     from research.v705 import coder
-    model = held or coder.get()
+    # (the larger one where it is there: one code model on the card, not
+    # two -- the 1.5B beside the 3B ran it out)
+    model = held or coder.big()
     tokenizer, network = model.tokenizer, model.model
     # (asked of the model: one paged off the card is brought back)
     device = network.device
@@ -88,7 +90,7 @@ def gained(original: str, sources: list, said: str = "",
     edit scores the same; whole, a 55-line function's 1500 edits took
     three minutes). `given`: code written ahead of each window alike."""
     from research.v705 import coder
-    tokenizer = (held or coder.get()).tokenizer
+    tokenizer = (held or coder.big()).tokenizer
     # what the change is for, said before each window alike: the edits that
     # do it more likely after it than those that do not
     ahead = "".join(f"# {line}\n" for line in said.splitlines())

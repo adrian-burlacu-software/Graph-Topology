@@ -60,6 +60,12 @@ def _size(model) -> int:
                for one in list(model.parameters()) + list(model.buffers()))
 
 
+def _quantized(model) -> bool:
+    return bool(getattr(model, "is_loaded_in_4bit", False) or
+                getattr(model, "is_loaded_in_8bit", False) or
+                getattr(model, "is_quantized", False))
+
+
 def _on_card(model) -> bool:
     try:
         return next(model.parameters()).device.type == "cuda"
@@ -91,6 +97,10 @@ def _make_room(torch, needed: int, keep) -> None:
         for _, model in held:
             if total + needed <= BUDGET * 2 ** 20:
                 break
+            if _quantized(model):
+                # 4 bits (the 3B code model): bitsandbytes cannot move it
+                # off the card -- it counts, and stays
+                continue
             model.to("cpu")
             model.paged = True
             total -= _size(model)

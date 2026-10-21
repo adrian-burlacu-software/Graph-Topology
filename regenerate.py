@@ -1240,6 +1240,19 @@ def steps() -> list[Step]:
              _hf_make("HuggingFaceTB/SmolLM3-3B", LLM / "SmolLM3-3B"),
              _model_check(LLM / "SmolLM3-3B", 5000),
              cost="ten minutes or more"),
+        Step("coder", "Qwen2.5-Coder-1.5B-Instruct, the code model at run "
+                      "time (v705 `coder`, 2.9 GB)",
+             _hf_make("Qwen/Qwen2.5-Coder-1.5B-Instruct",
+                      LLM / "Qwen2.5-Coder-1.5B-Instruct"),
+             _model_check(LLM / "Qwen2.5-Coder-1.5B-Instruct", 2500),
+             cost="a few minutes"),
+        Step("coder-3b", "Qwen2.5-Coder-3B-Instruct, the code model that "
+                         "writes a change's tests, inputs and whole "
+                         "functions, in 4 bits (v698 `requested`, 6 GB)",
+             _hf_make("Qwen/Qwen2.5-Coder-3B-Instruct",
+                      LLM / "Qwen2.5-Coder-3B-Instruct"),
+             _model_check(LLM / "Qwen2.5-Coder-3B-Instruct", 5000),
+             cost="ten minutes or more"),
 
         # -- the cycle ------------------------------------------------------
         Step("reader-corpus", "what the rules read, for the encoder to learn",

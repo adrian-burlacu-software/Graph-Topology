@@ -379,6 +379,52 @@ def _act(read, text: str, session, memory) -> dict | None:
                 if path_.endswith(".py") and not Pj.is_data(path_):
                     from research.v698 import requested
                     check = requested.checker(text, held, path_)
+                    # a name made another everywhere it is used, where
+                    # the request's tests hold for it (`rename
+                    # parse_isbn to clean_isbn everywhere`: two lines of
+                    # one file, 7 of 7 editors agreeing)
+                    found_renames = requested.renames(text, held)
+                    if not check.get("kept"):
+                        # no test of the request to tell which name is
+                        # meant: the one name written as code writes names
+                        # (`clean_isbn`), or none -- "parse_isbn to to" was
+                        # made, `to` passing the project's own tests
+                        shaped = [one for one in found_renames
+                                  if requested.code_shaped(one[1])]
+                        found_renames = shaped if len(
+                            {one[1] for one in shaped}) == 1 else []
+                    for old, new, changed in found_renames:
+                        # made, not guessed: its own tests kept and,
+                        # where any test of what was asked is kept, one
+                        # of them it alone passes
+                        if check.get("verify files") is None or \
+                                check["verify files"](
+                                    changed, least=1 if check.get("kept")
+                                    else 0):
+                            continue
+                        diffs = []
+                        for path__, after in changed.items():
+                            before = held.files[path__]
+                            held.write(path__, after)
+                            fixing.MADE.setdefault(key, []).append(
+                                (path__, before, after))
+                            diffs.append(fixing.diff(before, after,
+                                                     path__))
+                        said = (f"Renamed {old} to {new} in "
+                                f"{', '.join(changed)}: every use of "
+                                f"it, the project's own tests still "
+                                f"passing.")
+                        found = asking._reply("change", text, said,
+                                              {"read": read.json()},
+                                              name=new)
+                        found["code"]["change"] = {
+                            "status": "changed", "renamed": [old, new],
+                            "files": sorted(changed),
+                            "diff": "\n".join(diffs),
+                            "requested": {"kept": check.get("kept", []),
+                                          "need": check.get("need", 0)}}
+                        found["code"]["answer"]["status"] = "changed"
+                        return found
                     if check.get("score") is None:
                         # nothing runs that tells the project as it is from
                         # the change: answers agreeing are no evidence it
@@ -406,40 +452,6 @@ def _act(read, text: str, session, memory) -> dict | None:
                                    "requested": {
                                        "kept": check["kept"],
                                        "need": check["need"]}}
-                        # a name made another everywhere it is used, where
-                        # the request's tests hold for it (`rename
-                        # parse_isbn to clean_isbn everywhere`: two lines of
-                        # one file, 7 of 7 editors agreeing)
-                        for old, new, changed in requested.renames(text,
-                                                                   held):
-                            # made, not guessed: its own tests kept and
-                            # one test of what was asked it alone passes
-                            if check["verify files"] is None or \
-                                    check["verify files"](changed, least=1):
-                                continue
-                            diffs = []
-                            for path__, after in changed.items():
-                                before = held.files[path__]
-                                held.write(path__, after)
-                                fixing.MADE.setdefault(key, []).append(
-                                    (path__, before, after))
-                                diffs.append(fixing.diff(before, after,
-                                                         path__))
-                            said = (f"Renamed {old} to {new} in "
-                                    f"{', '.join(changed)}: every use of "
-                                    f"it, and the tests of what you asked "
-                                    f"hold ({len(check['kept'])} written, "
-                                    f"the project's own still passing).")
-                            found = asking._reply("change", text, said,
-                                                  {"read": read.json()},
-                                                  name=new)
-                            found["code"]["change"] = {
-                                "status": "changed", "renamed": [old, new],
-                                "files": sorted(changed),
-                                "diff": "\n".join(diffs),
-                                "requested": context["requested"]}
-                            found["code"]["answer"]["status"] = "changed"
-                            return found
                 made = fixing.change(text, held, subject, key,
                                      spans=read.spans, context=context)
                 if context is not None and "requested" in context:

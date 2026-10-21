@@ -1218,7 +1218,7 @@ def _summary(code: str) -> str:
     cannot be asked)."""
     try:
         from research.v705 import coder
-        said = coder.get().write([SUMMARY.format(code=code.strip())],
+        said = coder.big().write([SUMMARY.format(code=code.strip())],
                                  longest=60)[0][0]
     except Exception:                           # noqa: BLE001
         return ""

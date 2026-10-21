@@ -66,7 +66,7 @@ STARTUP = 900
 #: -- so the areas that write code go to the first alone, with most of the
 #: card (24 conversations, 1532 of the test's 2337 s), and the rest (805 s)
 #: to the other
-SERVERS, ENGINES, PARTS = 2, 6, (4200, 1200)
+SERVERS, ENGINES, PARTS = 2, 6, (3600, 1200)
 #: and the part of the card each may take at all (`paging.FRACTION`): all
 #: of it -- the two at their peaks need more than the card has, and held
 #: to parts of it they ran out instead of spilling (0.52 and 0.32: eight

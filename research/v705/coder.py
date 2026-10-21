@@ -53,6 +53,25 @@ CHANGE = ("A function of a Python project should change. What is wanted: "
           "```python block, nothing else.")
 
 
+#: the larger code model, in 4 bits (~2 GB on the card): what a change's
+#: tests, inputs and whole functions are written by (v698 `requested`) --
+#: the 1.5B wrote tests importing pytest, expecting what the code gives
+#: now, and no input of what a request was about
+BIG = ROOT / "llm" / "Qwen2.5-Coder-3B-Instruct"
+
+
+def big():
+    """The larger code model, in 4 bits, loaded once (where it is not
+    there, the 1.5B)."""
+    if "big" not in _LOADED:
+        if not (BIG / "config.json").exists():
+            return get()
+        from research.v705 import paging
+        _LOADED["big"] = Teacher(BIG)
+        paging.adopt(_LOADED["big"].model)
+    return _LOADED["big"]
+
+
 def get() -> Coder:
     """The code model, loaded once."""
     if "coder" not in _LOADED:
