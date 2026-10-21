@@ -75,7 +75,7 @@ FRACTIONS = (1.0, 1.0)
 #: (and what loads the code model: a change's tests of what was asked,
 #: pasted code's one sentence -- the second server loaded it too, 3 GB on a
 #: budget of 1.2, and the card spilled, 7.3 GB "100%" at 25 W)
-HEAVY = ("code-change", "data-change", "explain", "follow-up")
+HEAVY = ("code-change", "data-change", "explain", "follow-up", "code-ask")
 #: the server the goal is said to: all its engines and the card's budget
 PORT = 8697
 

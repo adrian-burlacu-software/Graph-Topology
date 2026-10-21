@@ -60,13 +60,23 @@ CHANGE = ("A function of a Python project should change. What is wanted: "
 BIG = ROOT / "llm" / "Qwen2.5-Coder-3B-Instruct"
 
 
+#: what the larger code model takes of the card, in 4 bits, in megabytes
+BIG_MB = 2300
+
+
 def big():
     """The larger code model, in 4 bits, loaded once (where it is not
-    there, the 1.5B)."""
+    there, the 1.5B). Not loaded where the server's part of the card cannot
+    hold it: a model in 4 bits is never paged out, and the measure's second
+    server (1200 MB) loaded it for a data question read as code -- 7.5 GB
+    on the card, "100%" at 23 W, the third run stalled."""
     if "big" not in _LOADED:
         if not (BIG / "config.json").exists():
             return get()
         from research.v705 import paging
+        if paging.BUDGET < BIG_MB:
+            raise MemoryError(f"the code model needs {BIG_MB} MB, this "
+                              f"server has {paging.BUDGET}")
         _LOADED["big"] = Teacher(BIG)
         paging.adopt(_LOADED["big"].model)
     return _LOADED["big"]

@@ -345,7 +345,7 @@ def about(aspect: str, subject: Subject, text: str, held, space, turn: int,
     """An aspect of a subject, answered -- however it was read."""
     from research.v698 import project as Pj
     if subject.kind == "file" and held is not None and \
-            Pj.is_data(subject.file or ""):
+            Pj.is_data(subject.file or "") and aspect != "where":
         # a data file (v701): what it holds and its schema, from its model
         found = _data_file(held, subject, aspect, text)
     elif aspect == "capabilities" or (aspect not in CAN[subject.kind] and (
@@ -375,9 +375,9 @@ def _data_file(held, subject: Subject, aspect: str, text: str) -> dict:
     records and their keys -- whatever was asked of it (v701: what a data
     file can be asked is still to be taught)."""
     model = held.data().get(subject.file)
-    if aspect in ("size", "where") and subject.file in held.files:
-        # how big, where: of the file as it is, not what it holds (`how
-        # many lines does books.csv have?` was its schema)
+    if aspect == "size" and subject.file in held.files:
+        # how big: of the file as it is, not what it holds (`how many lines
+        # does books.csv have?` was its schema)
         text_ = held.files[subject.file]
         lines = len(text_.splitlines())
         said = (f"{subject.file} has {lines} lines ({len(text_)} "
@@ -739,8 +739,9 @@ def _a_symbol(held, subject: Subject, text: str) -> dict:
 
 def _where(held, subject: Subject, text: str) -> dict:
     if subject.kind == "file":
-        read = held.outline()[subject.file]
-        return _reply("where", text, f"{subject.file}, {read['lines']} "
+        # a data file has no outline: its lines counted as they are
+        lines = len(held.files[subject.file].splitlines())
+        return _reply("where", text, f"{subject.file}, {lines} "
                       f"lines.", {"file": subject.file},
                       [{"title": subject.file, "kind": "the file",
                         "code": "\n".join(held.files[subject.file]
@@ -989,6 +990,61 @@ def _cases(held, subject: Subject, text: str) -> dict:
     return _reply("cases", text, said, {"cases": found}, name=subject.name)
 
 
+#: what the code model is asked of a situation said in words
+SITUATION = ("In {path}, a Python project's file:\n```python\n{text}\n```\n"
+             "A programmer asks: \"{said}\"\nWrite the one call of {name} "
+             "that asks it, with literal inputs (the project's own classes "
+             "may be used), in one ```python block, nothing else.")
+
+
+def _outcome(held, subject: Subject, text: str) -> dict:
+    """What a function gives in a situation said in words (`what does
+    oldest return when there are no books?`): the call the situation is
+    written as by the code model, run in a copy of the project (v698
+    `requested`) -- what it gave said, and the call; what it is where no
+    call can be made or run."""
+    if subject.kind != "function" or not str(subject.file).endswith(".py"):
+        return _explain(held, subject, text)
+    import shutil
+    import tempfile
+    from pathlib import Path
+    from research.v698 import requested
+    from research.v705 import coder
+    name = subject.name.split(".")[-1]
+    try:
+        model = coder.big()
+        reply = model.write([SITUATION.format(
+            path=subject.file, text=held.files[subject.file][:6000],
+            said=text, name=name)], longest=120)[0]
+        reply = reply[0] if isinstance(reply, list) else reply
+    except Exception:                           # noqa: BLE001
+        return _explain(held, subject, text)
+    calls = requested._calls([requested._code_of(reply)], held, subject.file)
+    calls = [one for one in calls if one.startswith(f"{name}(")]
+    if not calls:
+        return _explain(held, subject, text)
+    root = Path(tempfile.mkdtemp(prefix="outcome-"))
+    try:
+        requested._copy(held, root)
+        [given] = requested._gives(root, calls[:1],
+                                   requested._module(subject.file))
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+    if given in ("TypeError", "NameError", "SyntaxError", "ran past"):
+        # the call written does not fit (`Book('12345')` of five fields):
+        # an error of the call, not of what is asked -- what it is, said
+        return _explain(held, subject, text)
+    said = (f"{calls[0]} raises {given}" if given[:1].isupper() and
+            given.isidentifier() and given not in ("True", "False", "None")
+            else f"{calls[0]} gives {given}") + \
+        f" -- run in a copy of the project ({subject.file})"
+    # and what it works with (`how does due_date work out the date?`: the
+    # run's answer alone said 15 for 1, not that LOAN_DAYS is 14)
+    said += _inside(held, {"file": subject.file, "name": subject.name}) + "."
+    return _reply("outcome", text, said, {"call": calls[0], "gave": given},
+                  name=subject.name)
+
+
 #: how near a description must be to what the project has, and how far
 #: ahead of the next, to be taken as naming it (MiniLM-L6, mean pooled:
 #: `which function works out when a loan is due` -- overdue 0.72,
@@ -1059,9 +1115,9 @@ ANSWERS = {"explain": _explain, "where": _where, "size": _size,
            "files": _files, "functions": _functions, "callers": _callers,
            "calls": _calls, "bugs": _gaps, "value": _value,
            "fields": _fields, "tests": _tests, "cases": _cases,
-           # what it gives in a situation: run (the plan's step 3) -- until
-           # then, what it is
-           "outcome": _explain}
+           # what it gives in a situation: run
+           "outcome": lambda held, subject, text: _outcome(held, subject,
+                                                           text)}
 
 
 # -- the conversation's own code -----------------------------------------------------

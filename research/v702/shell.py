@@ -351,6 +351,29 @@ def _grounded(command: str, request: str) -> str:
     return re.sub(r"(^|[\s=\"'])(/[\w.\-/]+)", own, command)
 
 
+def _placed(command: str, root) -> str:
+    """A file the command names as the request said it, by its name alone,
+    where the project has it in a folder (`head -1 books.csv` of
+    data/books.csv): the one file of the project of that name, by its path
+    from the project's root. Left as it is where it is there already, or
+    where the project has none or more than one of that name."""
+    root = Path(root)
+    if not root.is_dir():
+        return command
+    def placed(found) -> str:
+        name = found.group(2)
+        if (root / name).exists():
+            return found.group(0)
+        paths = [one for one in root.rglob(name) if one.is_file() and not any(
+            part.startswith(".") or part == "__pycache__"
+            for part in one.relative_to(root).parts)]
+        if len(paths) != 1:
+            return found.group(0)
+        return found.group(1) + paths[0].relative_to(root).as_posix()
+    return re.sub(r"(^|[\s=\"'<>])([\w\-]+\.[A-Za-z]\w*)(?=$|[\s\"'|;>)])",
+                  placed, command)
+
+
 def written(request: str, root: str | Path | None = None) -> dict:
     """The command a request asks for: the writer's answers, those that
     parse, the one most of them write -- where at least two agree."""
@@ -369,6 +392,8 @@ def written(request: str, root: str | Path | None = None) -> dict:
             command = command[2:]
         command = command.splitlines()[0].strip() if command else ""
         command = _grounded(command, request)
+        if root is not None:
+            command = _placed(command, root)
         if command and parses(command) and not _unset(command):
             key = " ".join(command.split())
             counts.setdefault(key, [command, 0])[1] += 1

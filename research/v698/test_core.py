@@ -164,6 +164,20 @@ class ObservedTests(unittest.TestCase):
         self.assertIsNone(pasted("```python\nx = 1\n```"))
 
 
+class PlacedTests(unittest.TestCase):
+    def test_a_file_named_alone_found_in_its_folder(self):
+        from research.v702.shell import _placed
+        with tempfile.TemporaryDirectory() as root:
+            (Path(root) / "data").mkdir()
+            (Path(root) / "data" / "books.csv").write_text("id\n")
+            (Path(root) / "a.txt").write_text("")
+            self.assertEqual(_placed("head -1 books.csv", root),
+                             "head -1 data/books.csv")
+            self.assertEqual(_placed("wc -l a.txt | cat", root),
+                             "wc -l a.txt | cat")
+            self.assertEqual(_placed("cat none.csv", root), "cat none.csv")
+
+
 class DataAskedTests(unittest.TestCase):
     def library(self):
         from research.v698.project import Project
@@ -218,6 +232,14 @@ class DataAskedTests(unittest.TestCase):
             "TARGET": ["books"], "VALUE": ["250"]},
             "which books have more than 250 pages ?".split()), project)
         self.assertEqual(found.value, ["Dune", "Kindred"])
+
+    def test_a_record_named_by_a_value_it_holds(self):
+        from research.v701 import querying as Q
+        project = self.library()
+        found = Q._by_value("how many pages does Kindred have?", project)
+        self.assertEqual(found.value, 264)
+        # a value told of it is no question of it
+        self.assertIsNone(Q._by_value("Kindred has 300 pages now", project))
 
     def test_a_follow_up_of_the_record(self):
         from research.v701 import querying as Q

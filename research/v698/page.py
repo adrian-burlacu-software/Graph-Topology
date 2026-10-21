@@ -33,6 +33,9 @@ PASTED, CODE_TALK = 212.0, 211.0
 #: a question about the project's data (v701): before code talk, where it is
 #: one and what it names is in the data
 DATA_TALK = 211.5
+#: how sure code talk must be a question is its own for a guess of the
+#: data's to give way to it
+SURE_CODE = 0.9
 #: what code talk reads as asking something done, never a question of data
 DOINGS = ("change", "make", "run", "teach", "goal")
 #: data said in a message: before code pasted (a JSON object reads as a
@@ -445,7 +448,10 @@ def _act(read, text: str, session, memory) -> dict | None:
                                 if subject.kind == "function" else None)
                         except Exception:       # noqa: BLE001
                             more = []
-                        context = {"score": check["score"], "rounds": 3,
+                        # (one round beside the code model's: three rounds
+                        # took 104 s of #38's 255, near the test's 300)
+                        context = {"score": check["score"],
+                                   "rounds": 1 if more else 3,
                                    "tests": len(check["kept"]),
                                    "original": check["original"],
                                    "more": more,
@@ -807,6 +813,11 @@ def replies(session) -> list:
             if read is None or read.act in ("none", "teach"):
                 return False
             names = known(_key(session))
+            if read.aspect == "where" and read.subject == "file":
+                # a file shown, as the shell would do it (`show me the first
+                # line of books.csv`: code talk shows a file whole, the
+                # shell the lines asked)
+                return False
             # its subject as marked, else the message's words shaped as
             # code (`shell.run`, `_turn`, `main()`) -- looked up
             shaped = [one.strip("?.,!'\"`") for one in text.split()
@@ -1074,6 +1085,17 @@ def replies(session) -> list:
                 return False
             if found.looked.get("of the record"):
                 return True
+            if found.looked.get("ask which") or \
+                    found.looked.get("read as") == "no question":
+                # a guess of the data (made by lookup, or asking which field
+                # is meant) is the code's question where code talk reads it
+                # surely as its own (`what does oldest return when there
+                # are no books?`: "several fields of numbers -- say which")
+                read = reading.code_talk(typed(memory), known(_key(session))) \
+                    if reading.taught() else None
+                if read is not None and (read.act in DOINGS or (
+                        read.act == "ask" and read.chance >= SURE_CODE)):
+                    return False
             if found.looked.get("read as") != "no question" and \
                     not found.looked.get("nothing"):
                 return True

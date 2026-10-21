@@ -25,6 +25,9 @@ from research import encoder
 HEADS = ("data_act", "data_op", "data_role")
 #: how sure the reader must be that a message asks about data
 FLOOR = 0.6
+#: how sure the reader must be that a message is no question of data for
+#: no lookup to make it one
+SURE_NONE = 0.9
 
 
 @dataclass
@@ -209,6 +212,15 @@ def answer(text: str, held) -> Found | None:
     asked = read(text, known(held))
     if asked is None:
         return None
+    if asked.act == "none" and asked.chance >= SURE_NONE:
+        # read surely as no question of data (`show me the first line of
+        # books.csv`, none 1.0): not made one by lookup -- it was made a
+        # question of the most pages. A record named by a value it holds,
+        # said whole, is still one (`who wrote Kindred?`, none 0.98)
+        found = _by_value(text, held)
+        if found is not None:
+            found.looked["read as"] = "no question"
+        return found
     if asked.act == "none" or asked.chance < FLOOR:
         found = _unread(text, asked, held)
         if found is not None:
@@ -300,6 +312,14 @@ def _by_value(text: str, held) -> Found | None:
             return None
         field_, likeness_ = framed[ranked[0][1]], round(ranked[0][0], 3)
     value = record[field_]
+    # a question of a field states no other value for it: one that does
+    # tells it (`there are now 25 Climbing Rose in stock` was answered "the
+    # stock ... is 12")
+    if re.fullmatch(r"-?\d+(\.\d+)?", str(value).strip()) and any(
+            float(one) != float(value)
+            for one in re.findall(r"(?<![\w.])-?\d+(?:\.\d+)?(?![\w.])",
+                                  rest)):
+        return None
     place = f"{path}.{field_}" if path else field_
     return Found(said=f"The {field_} of the record whose {named} is {said} "
                       f"(in {model.path}) is {value}.",
@@ -824,6 +844,9 @@ def _extreme(asked: Asked, found: dict, model, records: list,
         asked = Asked(act, asked.chance, asked.op, asked.spans, asked.words,
                       asked.known, asked.acts)
     if field_ is None:
+        # which field is asked, asked back: what another part reads as its
+        # own is that part's (the page's data talk yields)
+        looked["ask which"] = True
         return Found(f"The {group} in {where} have "
                      f"{'no field' if not numeric else 'several fields'} of "
                      f"numbers{': ' + ', '.join(numeric) if numeric else ''}"
