@@ -416,9 +416,10 @@ def main(argv=None) -> int:
     parser.add_argument("--url", default="http://127.0.0.1:8697")
     parser.add_argument("--area", default=None)
     parser.add_argument("--suite", default="suite",
-                        choices=("suite", "heldout"),
+                        choices=("suite", "heldout", "canitedit"),
                         help="heldout: fixtures/garden, kept apart from "
-                             "the work it measures")
+                             "the work it measures; canitedit: CanItEdit's "
+                             "changes, each its own project (canitedit.py)")
     parser.add_argument("--core", action="store_true",
                         help="only the core areas (suite.CORE)")
     parser.add_argument("--only", type=int, nargs="*", default=None)
@@ -433,6 +434,9 @@ def main(argv=None) -> int:
     options = parser.parse_args(argv)
     if options.suite == "heldout":
         from research.v704.heldout import HELDOUT as SUITE
+    elif options.suite == "canitedit":
+        from research.v704 import canitedit
+        SUITE = canitedit.suite()
     chosen = [(at, one) for at, one in enumerate(SUITE)
               if (options.area is None or one.area == options.area) and
               (not options.core or one.area in CORE) and

@@ -1174,6 +1174,14 @@ def steps() -> list[Step]:
                              "(JavaScript), v696 rung 4's held benchmark",
              lambda: _run("research.v696.bugs", "fetch"),
              _humanevalfix_check, cost="seconds"),
+        Step("canitedit", "CanItEdit's 105 changes asked of Python files, "
+                          "each a project of its own with its tests apart "
+                          "(the core's code changes beyond its own test)",
+             lambda: (_run("research.v704.canitedit", "fetch"),
+                      _run("research.v704.canitedit", "projects")),
+             _lines_check(DATA / "canitedit" / "test.jsonl", 105,
+                          "105 when made"),
+             cost="a minute"),
         Step("humanevalfix-py", "the same bugs in Python (v699 rung 4)",
              lambda: _run("research.v696.bugs", "fetch", "python"),
              _lines_check(DATA / "humanevalfix" / "python.jsonl", 160,
