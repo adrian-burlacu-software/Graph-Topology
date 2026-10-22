@@ -770,7 +770,23 @@ def _carried(asked: Asked, found: dict | None, target: str) -> Found:
         return Found((f"Yes: {len(records)} {group} in {where}" if there
                       else f"No {group} in {where}") + _because(looked) + ".",
                      there, where, collection, asked, looked)
-    if asked.act in ("max", "min") and not found["field"] and records:
+    by = found["by"]
+    if asked.act == "list" and by and not values and records and all(
+            _orderable(_field_of(one, by)) for one in records):
+        # a field of numbers or times named, and every record's of it read
+        # as asked: where the question is nearer the one with its most or
+        # least (`which member joined first?` listed every member), that
+        from research.v701 import likeness
+        way = likeness.ordered(" ".join(asked.words), by,
+                               _kinds([by], records)[by],
+                               _one(_said(group)[-1]) if _said(group.strip(
+                                   "[]")) else "one")
+        if way is not None:
+            looked["ordered"] = way
+            asked = Asked(way, asked.chance, asked.op, asked.spans,
+                          asked.words, asked.known, asked.acts)
+    if asked.act in ("max", "min") and (not found["field"] or looked.get(
+            "ordered")) and records:
         return _extreme(asked, found, model, records, looked)
     name = found["field"] or (model.keys(collection) or [None])[0] or \
         next((one for one in (model.collections[collection]["fields"])
@@ -829,14 +845,16 @@ def _extreme(asked: Asked, found: dict, model, records: list,
         # field asked both ways (`likeness`) -- the nearest is the field
         # and the way; two fields as near, it asks which
         from research.v701 import likeness
-        # the words naming the data looked up already, left out: `kids` is
-        # near `age` whatever is asked of them
-        base = model.path.rsplit("/", 1)[-1].lower()
-        rest = [word for word in asked.words
-                if word.lower() not in {one.lower() for one in asked.known}
-                and not _named(word, group) and word.lower() != base
-                and not _named(word, base.rsplit(".", 1)[0])]
-        meant = likeness.extreme(" ".join(rest), numeric)
+        # the question whole, beside each field said of what the data
+        # calls its records (`which book is the longest` -- `the book with
+        # the most pages`), and of each what it measures: of a time the
+        # most is the latest (`the newest book`, its year the largest)
+        named_as = group if group.strip("[]") else \
+            model.path.rsplit("/", 1)[-1].rsplit(".", 1)[0]
+        meant = likeness.extreme(" ".join(asked.words), numeric,
+                                 _kinds(numeric, records),
+                                 _one(_said(named_as)[-1]) if _said(named_as)
+                                 else "one")
         if meant is not None:
             field_, act = meant
             looked["nearest"] = f"{act} {field_}"
@@ -850,7 +868,7 @@ def _extreme(asked: Asked, found: dict, model, records: list,
         return Found(f"The {group} in {where} have "
                      f"{'no field' if not numeric else 'several fields'} of "
                      f"numbers{': ' + ', '.join(numeric) if numeric else ''}"
-                     f" -- say which.", None, where, collection, asked,
+                     f" -- which do you mean?", None, where, collection, asked,
                      looked)
     numbers = [_field_of(row, field_) for row in records]
     held = [(number, row) for number, row in zip(numbers, records)
@@ -866,7 +884,9 @@ def _extreme(asked: Asked, found: dict, model, records: list,
     looked.update({"field": field_, "extreme": asked.act, "key": key})
     if len(rows) == 1:
         looked["record"] = rows[0]
-    word = "largest" if asked.act == "max" else "smallest"
+    word = ({"max": "latest", "min": "earliest"} if _kinds(
+        [field_], records)[field_] == "time" else {
+        "max": "largest", "min": "smallest"})[asked.act]
     return Found(f"{_said_list(names)}: the {group} in {where} with the "
                  f"{word} {field_} ({_said_value(best)}).",
                  names[0] if len(names) == 1 else names, where, collection,
@@ -883,6 +903,36 @@ def _orderable(value) -> bool:
         return False
     return isinstance(value, (int, float)) or (
         isinstance(value, str) and bool(DATE.fullmatch(value)))
+
+
+#: how much nearer a field's name must be to a time than to an amount
+#: for whole years to be read as one (`year`, `founded`; not `pages`)
+TIME_LEAD = 0.05
+
+
+def _kinds(fields: list, records: list) -> dict:
+    """Whether each field of numbers is an amount or a time: dates as data
+    writes them, or whole years (four digits) where the field's name reads
+    as a time -- of a time the most is the latest, not the largest."""
+    from research.v701 import likeness
+    out = {}
+    for one in fields:
+        values = [_field_of(row, one) for row in records]
+        values = [value for value in values if value is not None]
+        if values and all(isinstance(value, str) and DATE.fullmatch(value)
+                          for value in values):
+            out[one] = "time"
+        elif values and all(isinstance(value, int) and not isinstance(
+                value, bool) and 1000 <= value <= 2999 for value in values):
+            ranked = dict((phrase, score) for score, phrase in
+                          likeness.nearest(one.replace("_", " "),
+                                           ["a year, a date", "an amount, "
+                                            "a count"]))
+            out[one] = "time" if ranked["a year, a date"] - ranked[
+                "an amount, a count"] >= TIME_LEAD else "amount"
+        else:
+            out[one] = "amount"
+    return out
 
 
 def _held_as(held, phrase: str) -> bool:

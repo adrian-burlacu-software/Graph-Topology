@@ -44,31 +44,90 @@ def nearest(text: str, phrases: list) -> list:
 
 
 #: how much nearer a field must bring the question than the way alone
-#: (`who has the highest`): `tallest` 0.28 for height, `oldest` 0.28 for
-#: age, `busiest` 0.10 for load; `which`, `the best`, `the most` below 0
+#: (`the one with the most`): `tallest` for height, `oldest` for age;
+#: `which`, `the best`, `the most` not at all
 FIELD_GAIN = 0.08
+#: how much nearer one way of the field chosen must be than the other, and
+#: one field than the next (`youngest`: the least age 0.71, the most 0.69)
+WAY_LEAD, FIELD_LEAD = 0.01, 0.02
+
+#: each way said of a field, as what it measures: an amount, or a time --
+#: of a time the most is the latest (`the newest book`: its year the
+#: largest, `oldest` the least -- of an age the largest). Said several ways
+#: and the likeness averaged: antonyms are near in the encoder, and one
+#: phrasing alone chose `cheapest` as the highest price
+FRAMES = {
+    "amount": {"max": ("the {g} with the most {f}", "the {g} with the "
+                       "highest {f}", "the {g} with the largest {f}",
+                       "the {g} whose {f} is the greatest"),
+               "min": ("the {g} with the least {f}", "the {g} with the "
+                       "lowest {f}", "the {g} with the smallest {f}",
+                       "the {g} whose {f} is the lowest")},
+    "time": {"max": ("the {g} with the latest {f}", "the {g} with the most "
+                     "recent {f}", "the {g} whose {f} came last"),
+             "min": ("the {g} with the earliest {f}", "the {g} with the "
+                     "first {f}", "the {g} whose {f} came first")},
+}
 
 
-def extreme(text: str, fields: list) -> tuple | None:
+#: each of the records' field said, listed rather than ordered
+LISTED = ("every {g}'s {f}", "the {f} of each {g}", "list the {g} and their "
+          "{f}", "what {f} does each {g} have")
+#: how much nearer an order must be than a list to be taken as asked
+ORDER_LEAD = 0.05
+
+
+def ordered(text: str, field: str, kind: str = "amount",
+            group: str = "one") -> str | None:
+    """"max" or "min" where a question naming a field of numbers or times
+    asks for the record with the most or least of it rather than each
+    record's (`which member joined first?`, read as a list of every
+    member); None where it lists them, or neither is ahead."""
+    said = {frame.format(g=group, f=field.replace("_", " ")): way
+            for way, frames in FRAMES[kind].items() for frame in frames}
+    said.update({frame.format(g=group, f=field.replace("_", " ")): "list"
+                 for frame in LISTED})
+    scores: dict = {}
+    for score, phrase in nearest(text, list(said)):
+        scores.setdefault(said[phrase], []).append(score)
+    mean = {way: sum(found) / len(found) for way, found in scores.items()}
+    way = max(("max", "min"), key=lambda one: mean[one])
+    if mean[way] - mean["list"] < ORDER_LEAD or \
+            abs(mean["max"] - mean["min"]) < WAY_LEAD:
+        return None
+    return way
+
+
+def extreme(text: str, fields: list, kinds: dict | None = None,
+            group: str = "one") -> tuple | None:
     """(field, "max" | "min") a question asking for the most or least of
     something, naming no field, means: the field it is nearer for being
     said (beyond the way alone: `kids` is near `age` whatever is asked),
-    by `FIELD_GAIN` and more than any other; the way, the nearer of
-    highest and lowest of it. None where no field is."""
-    ways = {"max": "who has the highest", "min": "who has the lowest"}
-    alone = {phrase: score for score, phrase in nearest(text,
-                                                        list(ways.values()))}
-    said = {f"{ways[way]} {one.replace('_', ' ')}": (one, way)
-            for one in fields for way in ways}
-    scores = {phrase: score for score, phrase in nearest(text, list(said))}
-    gain: dict = {}
-    for phrase, (one, way) in said.items():
-        gain[one] = max(gain.get(one, -1.0), scores[phrase] - alone[ways[way]])
+    by `FIELD_GAIN` and ahead of any other; the way, the nearer of its two
+    by `WAY_LEAD`. `kinds` says of each field whether it is an amount or a
+    time (an amount where unsaid). None where no field or way is ahead."""
+    kinds = kinds or {}
+    said: dict = {}
+    for one in fields:
+        for way, frames in FRAMES[kinds.get(one, "amount")].items():
+            for frame in frames:
+                said[frame.format(g=group, f=one.replace("_", " "))] = (
+                    one, way)
+    alone = {frame.format(g=group, f="").replace("  ", " ").rstrip(): way
+             for way, frames in FRAMES["amount"].items() for frame in frames
+             if frame.endswith("{f}")}
+    scores: dict = {}
+    for score, phrase in nearest(text, list(said) + list(alone)):
+        key = said.get(phrase) or ("", alone[phrase])
+        scores.setdefault(key, []).append(score)
+    mean = {key: sum(found) / len(found) for key, found in scores.items()}
+    gain = {one: max(mean[(one, way)] - mean[("", way)]
+                     for way in ("max", "min")) for one in fields}
     ranked = sorted(gain.items(), key=lambda one: -one[1])
     if not ranked or ranked[0][1] < FIELD_GAIN or (
-            len(ranked) > 1 and ranked[0][1] - ranked[1][1] < FIELD_GAIN / 2):
+            len(ranked) > 1 and ranked[0][1] - ranked[1][1] < FIELD_LEAD):
         return None
     best = ranked[0][0]
-    way = max(ways, key=lambda one: scores[
-        f"{ways[one]} {best.replace('_', ' ')}"])
-    return best, way
+    if abs(mean[(best, "max")] - mean[(best, "min")]) < WAY_LEAD:
+        return None
+    return best, max(("max", "min"), key=lambda way: mean[(best, way)])

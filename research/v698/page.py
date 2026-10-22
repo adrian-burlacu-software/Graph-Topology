@@ -381,7 +381,15 @@ def _act(read, text: str, session, memory) -> dict | None:
                 path_ = subject.file or ""
                 if path_.endswith(".py") and not Pj.is_data(path_):
                     from research.v698 import requested
-                    check = requested.checker(text, held, path_)
+                    # what `it` is, said to the code model where the
+                    # request does not name it (`what does parse_isbn
+                    # do?` ... `make it remove dots as well`: no test of
+                    # parse_isbn written)
+                    stated = text if subject.kind != "function" or re.search(
+                        rf"(?<!\w){re.escape(subject.name.split('.')[-1])}"
+                        rf"(?!\w)", text) else \
+                        f"{subject.name.split('.')[-1]}: {text}"
+                    check = requested.checker(stated, held, path_)
                     # a name made another everywhere it is used, where
                     # the request's tests hold for it (`rename
                     # parse_isbn to clean_isbn everywhere`: two lines of
@@ -444,7 +452,7 @@ def _act(read, text: str, session, memory) -> dict | None:
                         # beside the editors' lines: the tests choose
                         try:
                             more = requested.rewritten(
-                                text, held, path_, subject.name
+                                stated, held, path_, subject.name
                                 if subject.kind == "function" else None)
                         except Exception:       # noqa: BLE001
                             more = []
@@ -717,6 +725,11 @@ def replies(session) -> list:
         space.turn = v697_page._turn(memory)
         return ANSWERED
 
+    # what the parts below can do, said to `what can you do?`
+    from research.v689 import social
+    social.can("write code, change your project's code, explain or debug "
+               "it, and answer questions about its functions, classes and "
+               "settings")
     out = [Operator(name="pasted code", apply=explain, proposes=pastes,
                     utility=PASTED,
                     rule="code pasted with a question about it: read by "
@@ -760,6 +773,7 @@ def replies(session) -> list:
     from research.v702 import shell
 
     if shell.available():
+        social.can("run a command on this computer, or write one for a task")
         asked_for: dict = {}
 
         def shell_read(memory):
@@ -1056,6 +1070,8 @@ def replies(session) -> list:
                  "it may change something"))
 
     if querying.available():
+        social.can("answer questions about your project's data files, or "
+                   "change them")
         found_for: dict = {}
 
         def data_found(memory):
@@ -1090,11 +1106,16 @@ def replies(session) -> list:
                 # a guess of the data (made by lookup, or asking which field
                 # is meant) is the code's question where code talk reads it
                 # surely as its own (`what does oldest return when there
-                # are no books?`: "several fields of numbers -- say which")
+                # are no books?`: "several fields of numbers -- which do you
+                # mean?")
                 read = reading.code_talk(typed(memory), known(_key(session))) \
                     if reading.taught() else None
+                # -- of something it names: one it only finds by meaning
+                # is a guess too (`which book is the longest?` found the
+                # field Loan.book)
                 if read is not None and (read.act in DOINGS or (
-                        read.act == "ask" and read.chance >= SURE_CODE)):
+                        read.act == "ask" and read.chance >= SURE_CODE and
+                        read.subject != "described")):
                     return False
             if found.looked.get("read as") != "no question" and \
                     not found.looked.get("nothing"):

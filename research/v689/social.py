@@ -147,13 +147,27 @@ ANSWERS = {
 }
 
 
+#: what the parts a page adds can do, each said once by the part as it is
+#: added (v698: code, data, the shell) -- `what can you do?` was answered
+#: with the conversation's relations alone, never the code
+PARTS: list = []
+
+
+def can(said: str) -> None:
+    """A part's ability, said: `write, change and explain code`."""
+    if said not in PARTS:
+        PARTS.append(said)
+
+
 def answer(act: str, relations=()) -> str:
     """What the conversation says to a social act. `what can you do` is
-    answered from the relations its operators answer."""
+    answered from what the parts added can do, and the relations its
+    operators answer."""
     if act == "abilities":
         said = [RELATIONS[one] for one in relations if one in RELATIONS]
-        return ("you can tell me about people and things and teach me kinds; "
-                "you can ask me " + "; ".join(said)
+        return ("".join(f"you can ask me to {one}; " for one in PARTS)
+                + "you can tell me about people and things and teach me "
+                  "kinds; you can ask me " + "; ".join(said)
                 + "; and whether a kind of thing can do or be something, "
                   "what a word means, and why")
     return ANSWERS.get(act, act)

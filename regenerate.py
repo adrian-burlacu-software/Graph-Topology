@@ -2037,6 +2037,26 @@ def steps() -> list[Step]:
                            "--subject", "shell", "--subject", "plan")),
              _model_check(LLM / "reader-code58", 80),
              needs=("reader-names-values",), cost="five hours", gpu=True),
+        Step("reader-change-said", "the shared reader taught a change said "
+                                   "in the words of what the program does, "
+                                   "naming none of its code (`make loans "
+                                   "last 21 days`), and a function asked "
+                                   "for by what it does (`python function: "
+                                   "is a year a leap year?`) -- no task of "
+                                   "the shell, no question of data (v698 "
+                                   "`teach_change_said`)",
+             lambda: (_run("research.v698.teach_change_said", "write"),
+                      _run("research.v698.teach_change_said", "check"),
+                      _run("research.v698.teach_change_said", "corpus"),
+                      _run("research.v689.teach_reader", "train",
+                           "--base", str(LLM / "reader-code58"),
+                           "--out", str(LLM / "reader-code59"),
+                           "--epochs", "1", "--rate", "2e-5",
+                           "--subject", "math", "--subject", "design",
+                           "--subject", "code", "--subject", "data",
+                           "--subject", "shell", "--subject", "plan")),
+             _model_check(LLM / "reader-code59", 80),
+             needs=("reader-index-talk",), cost="two hours", gpu=True),
         Step("already", "whether a function already takes what a change "
                         "asks it to take, read against each parameter as "
                         "the code says what it is (v705 `teach_already`, "

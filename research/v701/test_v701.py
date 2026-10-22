@@ -286,7 +286,7 @@ class ExtremeTests(unittest.TestCase):
         from research.v701 import querying as Q
         found = Q.carry(self.asked("max", {"TARGET": ["kids"]}), self.held())
         self.assertIsNone(found.value)
-        self.assertIn("say which", found.said)
+        self.assertIn("which do you mean?", found.said)
 
 
 class RecordsKeptTests(unittest.TestCase):

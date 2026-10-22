@@ -233,6 +233,30 @@ class DataAskedTests(unittest.TestCase):
             "which books have more than 250 pages ?".split()), project)
         self.assertEqual(found.value, ["Dune", "Kindred"])
 
+    def test_the_most_of_a_time_is_the_latest(self):
+        from research.v701 import querying as Q
+        project = self.library()
+        # no field said: the year, and of a time the most is the latest
+        found = Q.carry(self.asked("min", "none", {"TARGET": ["book"]},
+                                   "what is the newest book ?".split()),
+                        project)
+        self.assertEqual(found.value, "Wild Seed")
+        self.assertIn("latest year", found.said)
+        found = Q.carry(self.asked("max", "none", {"TARGET": ["book"]},
+                                   "which book is the oldest ?".split()),
+                        project)
+        self.assertEqual(found.value, "Dune")
+        # a field of times named, read as every record's: the earliest
+        found = Q.carry(self.asked("list", "none", {
+            "TARGET": ["member"], "FIELD": ["joined"]},
+            "which member joined first ?".split()), project)
+        self.assertEqual(found.value, "Grace Hopper")
+        # and every record's where that is asked
+        found = Q.carry(self.asked("list", "none", {
+            "TARGET": ["members"], "FIELD": ["joined"]},
+            "list the members and their joined dates".split()), project)
+        self.assertEqual(len(found.value), 2)
+
     def test_a_record_named_by_a_value_it_holds(self):
         from research.v701 import querying as Q
         project = self.library()

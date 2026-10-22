@@ -316,8 +316,10 @@ def resolve(reading, held, space, turn: int, key) -> Subject | None:
         recent = _focus(key, space, turn)
         if recent is not None:
             return recent
-        if held is not None and held.files:
-            return Subject("project", held.name or "the project")
+        # nothing named and nothing talked of: no question of the project
+        # whole -- that is read as its own subject (`what does this project
+        # do?`); `which plants cost under 10?` was answered with the
+        # project's every file
     return None
 
 
@@ -759,9 +761,12 @@ def _where(held, subject: Subject, text: str) -> dict:
              "code": "\n".join(lines[one.start - 1:one.end]),
              "file": one.file, "line": one.start}], subject.name)
     found = held.find(subject.name)
+    # and where it is used (`is find_by_author called anywhere?`, `where
+    # is it used?` read as where it is): where it is, then who uses it
     said = f"{subject.name} is defined in " + "; ".join(
         f"{_at(one)}-{one['end']} as {_signature(one)}"
-        + (" (exported)" if one["exported"] else "") for one in found) + "."
+        + (" (exported)" if one["exported"] else "") for one in found) + \
+        f"; {_used_said(held, subject.name, _uses_of(held, subject.name))}."
     return _reply("where", text, said, {"found": found},
                   [_block(held, one) for one in found[:3]], subject.name)
 
