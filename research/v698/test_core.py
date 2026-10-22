@@ -164,6 +164,22 @@ class ObservedTests(unittest.TestCase):
         self.assertIsNone(pasted("```python\nx = 1\n```"))
 
 
+class CheckerWornTests(unittest.TestCase):
+    def test_a_worn_python_checker_is_started_again(self):
+        from unittest import mock
+        from research.v696.pychecker import PyChecker
+        replies = [{"ok": False, "error": "MemoryError"},
+                   {"ok": True, "errors": []}]
+        with mock.patch.object(PyChecker, "__init__", lambda self: None), \
+                mock.patch.object(PyChecker, "_ask_once",
+                                  lambda self, request, wait:
+                                  replies.pop(0)), \
+                mock.patch.object(PyChecker, "restart") as restart:
+            reply = PyChecker()._ask({"op": "diagnose"}, wait=1)
+        self.assertEqual(reply, {"ok": True, "errors": []})
+        restart.assert_called_once()
+
+
 class PlacedTests(unittest.TestCase):
     def test_a_file_named_alone_found_in_its_folder(self):
         from research.v702.shell import _placed
@@ -317,9 +333,42 @@ class RequestedTests(unittest.TestCase):
         self.assertEqual(_agreed_by_tests([right[0]], 2), [right[0]])
         # the same tests passed, but giving differently: apart, and neither
         # group of one is chosen
+        # answers agreeing on what passes none of the tests there are: no
+        # choice (one model's answers agreeing are no evidence)
+        other = {"own ok": True, "passes": (), "gives": ("7",)}
+        self.assertEqual(_agreed_by_tests([other, dict(other), dict(other)],
+                                          9, ("5",)), [])
         strip = {"own ok": True, "passes": (0, 2), "gives": ("'978.014'",)}
         whole = {"own ok": True, "passes": (0, 2), "gives": ("'978014'",)}
         self.assertEqual(_agreed_by_tests([strip, whole], 4), [])
+
+    def test_what_a_request_writes_out_is_asked_of_the_code(self):
+        from research.v698 import requested
+        project = held()
+        asked = requested.interface(
+            "add a method `count_by(author: str, year=None)` and a field "
+            "`shelved`; keep `load` as it is; the heuristic h(n)", project)
+        # (`load`, the project's own, named bare: nothing asked of it)
+        self.assertEqual(asked, {"count_by": 2, "shelved": None})
+        right = ("class Shelf:\n    def __init__(self):\n        self.shelved"
+                 " = []\n    def count_by(self, author, year=None, *, x=1):\n"
+                 "        return 0\ndef load():\n    pass\n")
+        self.assertEqual(requested._defines(right, asked), "")
+        self.assertIn("no shelved", requested._defines(
+            right.replace("self.shelved", "self.kept"), asked))
+        self.assertIn("count_by does not take 2", requested._defines(
+            right.replace("author, year=None", "author"), asked))
+
+    def test_a_test_made_a_probe_of_what_code_gives(self):
+        from research.v698 import requested
+        probe = requested._probe("from shelf.books import Book\n"
+                                 "b = Book('a', 3)\nassert b.pages == 99\n"
+                                 "assert b.title\n")
+        project = held()
+        root = Path(tempfile.mkdtemp())
+        requested._copy(project, root)
+        self.assertEqual(requested._probed(root, [probe], "shelf.books"),
+                         ("3; 'a'",))
 
     def test_a_name_written_as_code(self):
         from research.v698.requested import code_shaped

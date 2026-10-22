@@ -32,10 +32,25 @@ def _json(text: str):
     return value if isinstance(value, (dict, list)) else None
 
 
+#: the most words a header's cell is said in, and a row's cells on average:
+#: a header names its columns, rows hold values -- three lines of prose
+#: with a comma each (a change asked of a function, in words) were read as
+#: a table of two columns
+HEADER_WORDS, CELL_WORDS = 4, 6
+
+
+def _tabular(lines: list) -> bool:
+    cells = [cell.split() for cell in lines[0].split(",")]
+    if any(len(cell) > HEADER_WORDS for cell in cells):
+        return False
+    rows = [cell.split() for line in lines[1:] for cell in line.split(",")]
+    return not rows or sum(map(len, rows)) / len(rows) <= CELL_WORDS
+
+
 def _csv_lines(lines: list) -> tuple | None:
     """(first, last) of the longest run of lines reading as a CSV header
     and rows: two columns or more, as wide as the header, two rows or
-    more."""
+    more -- a header of names and rows of values, not sentences."""
     best = None
     at = 0
     while at < len(lines):
@@ -45,7 +60,8 @@ def _csv_lines(lines: list) -> tuple | None:
                 lines[end].count(",") == width and lines[end].strip():
             end += 1
         if width >= 1 and end - at >= 3 and (best is None or
-                                             end - at > best[1] - best[0]):
+                                             end - at > best[1] - best[0]) \
+                and _tabular(lines[at:end]):
             best = (at, end)
         at = max(end, at + 1)
     return best

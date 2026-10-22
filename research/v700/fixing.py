@@ -115,6 +115,69 @@ def part_of(held, subject, statement: str = "") -> tuple | None:
     return subject.file, start, end
 
 
+#: what a name is written as, to be one: in backquotes, called, or shaped
+#: as code (`next_n_fibs`, `skipQuestion`, `header()`)
+SHAPED = re.compile(r"`([A-Za-z_]\w*)(?:\([^`]*\))?`|\b([A-Za-z_]\w*)\(|"
+                    r"\b([a-z]+_[a-z_\d]+|[a-z]+[A-Z]\w*)\b")
+
+
+def added(statement: str, held) -> list:
+    """The names a change asks for that the project has nowhere -- written
+    as code are, in backquotes or shaped so (`add a method next_n_fibs`):
+    what the change adds, not what it changes."""
+    if held is None or not held.files:
+        return []
+    import builtins
+    import keyword
+    index = held.index()
+    said = [next(one for one in found if one) for found in
+            SHAPED.findall(statement)]
+    text = "\n".join(held.files.values())
+    out = []
+    for name in dict.fromkeys(said):
+        if keyword.iskeyword(name) or hasattr(builtins, name) or \
+                index.find(name) or re.search(rf"\b{re.escape(name)}\b",
+                                              text):
+            continue
+        out.append(name)
+    return out
+
+
+def several(statement: str, held) -> bool:
+    """Whether a change names two or more of one file's functions or
+    methods (`implement draw in the Deck class and receive_card in the
+    Player class`): a change of that file, not of one of them. A class
+    named beside one function is where that function's change looks
+    (`lend should refuse a Member holding the most`), not another."""
+    if held is None or not held.files:
+        return False
+    index = held.index()
+    found: dict = {}
+    for word in dict.fromkeys(re.findall(r"[A-Za-z_]\w*", statement)):
+        for one in index.find(word):
+            if one.kind in ("function", "method"):
+                found.setdefault(one.file, set()).add(word)
+    return any(len(words) >= 2 for words in found.values())
+
+
+def adding(statement: str, held, subject):
+    """Where a change that adds names goes: the file of a class it names,
+    else of what it was placed on, else the project's one file of code."""
+    from research.v698.asking import Subject
+    index = held.index()
+    classes = [one for word in re.findall(r"[A-Za-z_]\w*", statement)
+               for one in index.find(word) if one.kind == "class"]
+    if classes:
+        return Subject("file", classes[0].file, classes[0].file)
+    if subject is not None and subject.kind in ("function", "file"):
+        return Subject("file", subject.file, subject.file)
+    code = [path for path in held.files if path.endswith(".py")
+            and not index.is_test(path)]
+    if len(code) == 1:
+        return Subject("file", code[0], code[0])
+    return subject
+
+
 def span(held, subject) -> tuple | None:
     """(first line, last line) of a function -- decorators included -- or
     of a file, whole."""
@@ -363,6 +426,8 @@ def _agreed_by_tests(rows: list, tests: int, original=()) -> list:
     groups: dict = {}
     original = tuple(original or ())
     for row in rows:
+        # what breaks the project's own tests, or lacks what the request
+        # writes out (`requested.interface`), is no change asked
         if not row.get("own ok"):
             continue
         passes = tuple(row.get("passes") or ())
@@ -377,6 +442,13 @@ def _agreed_by_tests(rows: list, tests: int, original=()) -> list:
         return sum(len(one.get("by") or {1}) for one in groups[key])
     best = max(groups, key=lambda one: (answers(one) * (1 + len(one[0])),
                                         len(one[0])))
+    if tests and not best[0]:
+        # tests of what was asked there, and the heaviest group passing none
+        # of them: answers agreeing on doing something else. (Chosen by what
+        # they do alone, past the tests -- 2026-10-22 -- answers of one
+        # model agreeing were no evidence: 12 of 12 agreeing, wrong; on
+        # CanItEdit 15 right and 26 wrong against 20 and 22.)
+        return []
     if answers(best) >= 2 or (len(best[0]) == tests and tests >= 2):
         return groups[best]
     return []

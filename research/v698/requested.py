@@ -191,6 +191,85 @@ def _gives(root: Path, calls: list, module: str = "") -> tuple:
         return ("ran past",)
 
 
+class _Probed(ast.NodeTransformer):
+    """A test's asserts made what they look at: `assert q.skipped == 1` ->
+    `_seen(lambda: q.skipped)` -- the value its code gives, not the one the
+    test expects."""
+
+    def visit_Assert(self, node):
+        test = node.test
+        looked = test.left if isinstance(test, ast.Compare) and len(
+            test.ops) == 1 and isinstance(test.ops[0], (ast.Eq, ast.Is)) \
+            else test
+        call = ast.Call(func=ast.Name(id="_seen", ctx=ast.Load()),
+                        args=[ast.Lambda(args=ast.arguments(
+                            posonlyargs=[], args=[], kwonlyargs=[],
+                            kw_defaults=[], defaults=[]), body=looked)],
+                        keywords=[])
+        return ast.copy_location(ast.Expr(value=call), node)
+
+
+def _probe(code: str) -> str | None:
+    """A written test as a probe of what code gives (`_Probed`), or None
+    where it does not parse."""
+    code = "\n".join(line for line in code.splitlines()
+                     if not re.match(r"\s*(import|from)\s+pytest\b", line))
+    try:
+        tree = _Probed().visit(ast.parse(code))
+    except SyntaxError:
+        return None
+    return ast.unparse(ast.fix_missing_locations(tree))
+
+
+PROBED = """import sys, json
+sys.path.insert(0, '.')
+_all = []
+for _code in {codes!r}:
+    _out = []
+    def _seen(look, _out=_out):
+        try:
+            _out.append(repr(look())[:200])
+        except BaseException as bad:
+            _out.append(type(bad).__name__)
+    _space = {{"__name__": "__test__", "_seen": _seen}}
+    try:
+        exec("from " + {module!r} + " import *", _space)
+    except BaseException:
+        pass
+    try:
+        exec(compile(_code, "<probe>", "exec"), _space)
+        for _name, _one in list(_space.items()):
+            if _name.startswith("test") and callable(_one):
+                try:
+                    _one()
+                except BaseException as bad:
+                    _out.append(type(bad).__name__)
+    except BaseException as bad:
+        _out.append(type(bad).__name__)
+    _all.append("; ".join(_out))
+print(json.dumps(_all))
+"""
+
+
+def _probed(root: Path, probes: list, module: str = "") -> tuple:
+    """What a project's copy gives for each probe: (what each looked at,
+    said, ...) -- the tests' inputs and the objects they build, run, their
+    expected outputs never asked: the code model chooses inputs well and
+    works out outputs badly."""
+    if not probes:
+        return ()
+    import json
+    try:
+        done = subprocess.run(
+            [sys.executable, "-I", "-c", PROBED.format(codes=probes,
+                                                       module=module)],
+            cwd=root, capture_output=True, text=True,
+            timeout=SECONDS * 2)
+        return tuple(json.loads(done.stdout.strip().splitlines()[-1]))
+    except (subprocess.TimeoutExpired, ValueError, IndexError):
+        return ("ran past",)
+
+
 def _own_tests(held) -> list:
     """The project's own test files."""
     from research.v698.symbols import Index
@@ -327,11 +406,23 @@ def rewritten(statement: str, held, path: str, name: str | None) -> list:
                                whole="the whole file")
     held_ = coder.big()
     held_.torch.manual_seed(zlib.crc32(asked.encode()))
-    # in two halves: twelve answers of 900 at once ran the card out
+    # in two halves: twelve answers of 900 at once ran the card out -- and
+    # of a file whole, one half: a file is longer to write than a function,
+    # and eleven of CanItEdit's 91 changes ran past the turn's 300 s
     replies = []
-    for _ in range(2):
-        replies += held_.write([asked], longest=900, samples=WRITTEN // 2,
-                               temperature=0.7)[0]
+    # as long as what is written again may be (a file of 3700 characters
+    # cut off at 900 tokens: every answer of it unread)
+    longest = 900 if name else min(1800, len(text) // 3 + 300)
+    # as many at once as fit: six of 900 tokens did, six of 1800 ran the
+    # card out (CUDA out of memory, the turn lost)
+    samples = max(2, min(WRITTEN // 2, WRITTEN // 2 * 900 // longest))
+    for _ in range(2 if name else 1):
+        try:
+            replies += held_.write([asked], longest=longest,
+                                   samples=samples, temperature=0.7)[0]
+        except held_.torch.cuda.OutOfMemoryError:
+            held_.torch.cuda.empty_cache()
+            break
     out = []
     for reply in replies:
         code = commits._code_of(reply)
@@ -350,6 +441,94 @@ def rewritten(statement: str, held, path: str, name: str | None) -> list:
         if changed and changed != text:
             out.append(changed)
     return out
+
+
+#: what a request writes as code: in backquotes
+QUOTED = re.compile(r"`([^`]+)`")
+#: a signature written out: `next_n_fibs(n: int)`, `powermod(base : int,
+#: exp : int, mod : int) -> int`
+SIGNED = re.compile(r"^(?:[\w.]+\.)?([A-Za-z_]\w*)\s*\(([^()]*)\)")
+
+
+def interface(statement: str, held) -> dict:
+    """What a request says the code will have, written as code (in
+    backquotes): {name: the number of parameters it writes, or None} --
+    each name it adds that the project has nowhere, and each signature it
+    writes (`parse(content: str)`). Read off the request, not guessed: the
+    code model's tests guessed signatures (`Store.buy_yarn() takes 2
+    positional arguments`) and outputs, and the change CanItEdit gives
+    passed 14 of 123 of them. (A name only mentioned -- `the heuristic
+    h(n)` -- is asked of no code.)"""
+    import builtins
+    import keyword
+    index = held.index()
+    text = "\n".join(held.files.values())
+    out: dict = {}
+    for quoted in QUOTED.findall(statement):
+        quoted = quoted.strip()
+        name = re.match(r"(?:[\w]+\.)*([A-Za-z_]\w*)", quoted)
+        if name is None or not re.fullmatch(r"[\w.]+(\s*\(.*\).*)?",
+                                            quoted, re.S):
+            continue
+        name = name.group(1)
+        if keyword.iskeyword(name) or hasattr(builtins, name):
+            continue
+        signed = SIGNED.match(quoted)
+        if signed is None:
+            # a bare name: asked of the code where the project has it
+            # nowhere (`a field skipped`)
+            if not (index.find(name) or re.search(
+                    rf"\b{re.escape(name)}\b", text)):
+                out[name] = None
+            continue
+        params = signed.group(2)
+        said = [one for one in (part.strip() for part in params.split(","))
+                if one and one != "self"]
+        # a call with values in it (`format(1, 2)`) is no signature: each
+        # parameter of one is a name, typed or not
+        if all(re.fullmatch(r"[A-Za-z_]\w*\s*(:.*)?(=.*)?", one)
+               for one in said):
+            out[name] = len(said)
+    return out
+
+
+def _defines(text: str, asked: dict) -> str:
+    """'' where code defines every name asked, each function with the
+    parameters asked; else what it lacks."""
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return "it does not parse"
+    defined: dict = {}
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            positional = [one.arg for one in node.args.posonlyargs +
+                          node.args.args if one.arg not in ("self", "cls")]
+            required = sum(default is None
+                           for default in node.args.kw_defaults)
+            whole = len(positional) + required
+            needed = len(positional) - len(node.args.defaults) + required
+            # as many as it needs, up to as many as it takes (any, where it
+            # takes *args)
+            defined.setdefault(node.name, set()).add(
+                (needed, 10 ** 6 if node.args.vararg else whole))
+        elif isinstance(node, ast.ClassDef):
+            defined.setdefault(node.name, set())
+        elif isinstance(node, (ast.Assign, ast.AnnAssign)):
+            for target in (node.targets if isinstance(node, ast.Assign)
+                           else [node.target]):
+                for one in ast.walk(target):
+                    if isinstance(one, ast.Attribute):
+                        defined.setdefault(one.attr, set())
+                    elif isinstance(one, ast.Name):
+                        defined.setdefault(one.id, set())
+    for name, count in asked.items():
+        if name not in defined:
+            return f"it has no {name}"
+        if count is not None and defined[name] and not any(
+                low <= count <= high for low, high in defined[name]):
+            return f"its {name} does not take {count}"
+    return ""
 
 
 def checker(statement: str, held, path: str) -> dict:
@@ -391,10 +570,15 @@ def checker(statement: str, held, path: str) -> dict:
         except Exception:                       # noqa: BLE001
             chosen = []
         calls = _calls(written + chosen, held, path)
+        # (every written test as a probe of what code gives -- `_probe` --
+        # grouped changes finer and chose none better, 2026-10-22: kept
+        # for what may use it, not used to choose)
+        probes: list = []
         original = _gives(root, calls, _module(path))
     finally:
         shutil.rmtree(root, ignore_errors=True)
     need = max(1, (len(kept) + 1) // 2)
+    asked = interface(statement, held)
 
     def verify(changed: str) -> str:
         return verify_files({path: changed})
@@ -408,7 +592,11 @@ def checker(statement: str, held, path: str) -> dict:
         place = Path(tempfile.mkdtemp(prefix="requested-"))
         try:
             _copy(held, place, {path: changed})
-            own_ok = all(_test_file(place, one) for one in own)
+            # what the request writes out the code will have, it has --
+            # else it is no change asked, as one breaking the project's
+            # own tests is none
+            own_ok = not _defines(changed, asked) and \
+                all(_test_file(place, one) for one in own)
             # (tuples: grouped by, and said as they are)
             passed = tuple(at for at, code in enumerate(kept)
                            if _runs(place, code, _module(path))[0]) if own_ok else ()
@@ -436,7 +624,7 @@ def checker(statement: str, held, path: str) -> dict:
                 f"(at least {least} must)")
     # (a change made, not guessed -- a rename -- is checked by the project's
     # own tests and, where any test of the request is kept, one of them)
-    if not kept and not calls:
+    if not kept and not calls and not probes:
         return {"verify": None, "score": None, "verify files": verify_files,
                 "tests": written, "kept": [], "left": left, "own": own,
                 "need": need, "calls": [], "original": (),
@@ -444,13 +632,19 @@ def checker(statement: str, held, path: str) -> dict:
     return {"verify": verify if kept else None,
             "verify files": verify_files, "score": score,
             "tests": written, "kept": kept, "left": left, "own": own,
-            "need": need, "calls": calls, "original": original}
+            "need": need, "calls": calls, "original": original,
+            "interface": asked}
 
 
 def code_shaped(name: str) -> bool:
     """Whether a name is written as code writes names and words are not:
     `clean_isbn`, `cleanIsbn`, `v2` -- not `to`, `everywhere`."""
     return "_" in name.strip("_") or any(one.isdigit() for one in name) or         bool(re.search(r"[a-z][A-Z]", name))
+
+
+#: how many words after a name of the project a new name is said, to be
+#: that name's new name
+RENAMED_WITHIN = 3
 
 
 def renames(statement: str, held) -> list:
@@ -466,7 +660,10 @@ def renames(statement: str, held) -> list:
     for at, old in enumerate(tokens):
         if not [one for one in index.find(old) if "." not in one.name]:
             continue
-        for new in tokens[at + 1:]:
+        # the new name said with the old, a word or two after it (`parse_
+        # isbn to clean_isbn`) -- not anywhere after it (`Replace the kl_div
+        # function body ... num_samples` was renamed `num_samples`)
+        for new in tokens[at + 1:at + 1 + RENAMED_WITHIN]:
             if new == old or index.find(new) or not new.isidentifier():
                 continue
             changed = renamed(held.files, index, old, new)

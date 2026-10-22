@@ -48,7 +48,20 @@ class PyChecker:
             self.replies.put(line)
         self.replies.put("")
 
-    def _ask(self, request: dict, wait: float) -> dict:
+    def _ask(self, request: dict, wait: float, again: bool = True) -> dict:
+        reply = self._ask_once(request, wait)
+        # the checker worn out -- a measure's hours grew it until every
+        # check said MemoryError, and every change after was refused, "the
+        # compiler cannot check the project" (22 of CanItEdit's 91; the
+        # TypeScript checker was mended so in round 2, this one never was)
+        # -- started again, and asked once more
+        if again and not reply.get("ok") and \
+                "MemoryError" in str(reply.get("error")):
+            self.restart()
+            return self._ask(dict(request), wait, again=False)
+        return reply
+
+    def _ask_once(self, request: dict, wait: float) -> dict:
         with self.lock:
             request["id"] = next(self.ids)
             self.calls += 1

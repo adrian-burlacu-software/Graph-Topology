@@ -285,6 +285,18 @@ def _act(read, text: str, session, memory) -> dict | None:
                 or space.language)
     if read.act == "goal":
         return _goal(text, held, read, key, session)
+    if read.act == "make" and held is not None and held.files:
+        from research.v700 import fixing
+        if fixing.added(text, held) and any(
+                one.kind == "class" for word in re.findall(
+                    r"[A-Za-z_]\w*", text)
+                for one in held.index().find(word)):
+            # something new asked of a class the project has (`create a
+            # method in Graph with the signature fibonacci(x: Node)`): a
+            # change of the project, not code apart from it
+            import dataclasses
+            return _act(dataclasses.replace(read, act="change"), text,
+                        session, memory)
     if read.act == "make":
         asked = coding.read(text, language)
         if asked.get("yours") and space.request and \
@@ -338,7 +350,11 @@ def _act(read, text: str, session, memory) -> dict | None:
         # its words name what it is about, not where (`report whether the
         # shell asks in /api/health and show it in the MCP health tool`) --
         # is planned across the project (v703), where a plan is agreed
-        if held is not None and not _named_outright(read, text, held):
+        # (across files: a project of one file of code has no plan to make
+        # -- 11 of CanItEdit's changes were planned in one file, and put back)
+        if held is not None and not _named_outright(read, text, held) and \
+                sum(path.endswith(".py") or path.endswith(".ts")
+                    for path in held.files) > 1:
             from research.v703 import planning
             if planning.available():
                 planned = planning.plan(text, held)
@@ -372,6 +388,15 @@ def _act(read, text: str, session, memory) -> dict | None:
             if near is not None:
                 subject = near if near.kind == "function" else \
                     asking.Subject("file", near.file, near.file)
+        if held is not None and (fixing.added(text, held) or
+                                 subject is None or
+                                 fixing.several(text, held)):
+            # a change adding what the project has not (`add a method
+            # next_n_fibs`): of the file that will hold it, not of the
+            # function nearest -- 26 of CanItEdit's 91 changed a method
+            # beside it; and a change placed nowhere, of a project with one
+            # file of code, is of that file
+            subject = fixing.adding(text, held, subject)
         if subject is not None and subject.kind in ("function", "file"):
             if fixing.available():
                 # what was asked, made a check that runs: tests of the
@@ -406,11 +431,13 @@ def _act(read, text: str, session, memory) -> dict | None:
                             {one[1] for one in shaped}) == 1 else []
                     for old, new, changed in found_renames:
                         # made, not guessed: its own tests kept and,
-                        # where any test of what was asked is kept, one
-                        # of them it alone passes
+                        # where tests of what was asked are kept, as many
+                        # of them as any change must pass -- not one alone
+                        # (`kl_div` renamed `num_samples` passed one test
+                        # of a new way of working it out)
                         if check.get("verify files") is None or \
                                 check["verify files"](
-                                    changed, least=1 if check.get("kept")
+                                    changed, least=None if check.get("kept")
                                     else 0):
                             continue
                         diffs = []
@@ -466,8 +493,21 @@ def _act(read, text: str, session, memory) -> dict | None:
                                    "requested": {
                                        "kept": check["kept"],
                                        "need": check["need"]}}
-                made = fixing.change(text, held, subject, key,
-                                     spans=read.spans, context=context)
+                try:
+                    made = fixing.change(text, held, subject, key,
+                                         spans=read.spans, context=context)
+                except Exception as bad:            # noqa: BLE001
+                    # the card run out writing the change (CUDA out of
+                    # memory: the turn was lost, the server said 500) -- no
+                    # change, said so, the card emptied for the next
+                    if "OutOfMemoryError" not in type(bad).__name__:
+                        raise
+                    import torch
+                    torch.cuda.empty_cache()
+                    made = {"status": "unchanged", "subject": subject.name,
+                            "said": (f"I did not change {subject.name}: the "
+                                     f"card ran out of memory writing the "
+                                     f"change -- nothing was written.")}
                 if context is not None and "requested" in context:
                     made["requested"] = context["requested"]
                 asking.FOCUS[key] = (subject, turn)
