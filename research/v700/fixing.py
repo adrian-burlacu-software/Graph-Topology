@@ -410,7 +410,8 @@ def _lines_changed(part: str, made: str) -> tuple:
     return out, put
 
 
-def _agreed_by_tests(rows: list, tests: int, original=()) -> list:
+def _agreed_by_tests(rows: list, tests: int, original=(),
+                     stated: int = 0) -> list:
     """The changes the tests of what was asked choose, as CodeT chooses
     (Chen et al. 2022), and what they do, as AlphaCode clusters: the
     changes that keep the project's own tests, grouped by the tests of
@@ -450,6 +451,11 @@ def _agreed_by_tests(rows: list, tests: int, original=()) -> list:
         # CanItEdit 15 right and 26 wrong against 20 and 22.)
         return []
     if answers(best) >= 2 or (len(best[0]) == tests and tests >= 2):
+        return groups[best]
+    if stated and set(range(stated)) <= set(best[0]):
+        # the examples the request says (`requested.stated`: the person's,
+        # not the code model's guesses) held: chosen though one answer
+        # wrote it
         return groups[best]
     return []
 
@@ -1240,7 +1246,8 @@ def _change_once(statement: str, held, subject, key=None,
                     row["own ok"], row["passes"], row["gives"] = score(
                         row["text"])
             chosen = _agreed_by_tests(passed, context.get("tests", 1),
-                                      context.get("original"))
+                                      context.get("original"),
+                                      context.get("stated", 0))
             if len(chosen) >= 2 or round_ + 1 >= context.get(
                     "rounds", VERIFIED_ROUNDS):
                 break
@@ -1364,7 +1371,8 @@ def _change_once(statement: str, held, subject, key=None,
     if (context or {}).get("score") is not None:
         # the changes the tests of what was asked choose, over all of them
         chosen = _agreed_by_tests(passed, context.get("tests", 1),
-                                  context.get("original"))
+                                  context.get("original"),
+                                  context.get("stated", 0))
         tests = context.get("tests", 1)
         for row in passed:
             row["verified"] = row in chosen

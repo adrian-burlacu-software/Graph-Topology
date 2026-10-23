@@ -488,6 +488,7 @@ def _act(read, text: str, session, memory) -> dict | None:
                         context = {"score": check["score"],
                                    "rounds": 1 if more else 3,
                                    "tests": len(check["kept"]),
+                                   "stated": check.get("stated", 0),
                                    "original": check["original"],
                                    "more": more,
                                    "requested": {

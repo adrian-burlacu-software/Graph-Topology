@@ -359,6 +359,28 @@ class RequestedTests(unittest.TestCase):
         self.assertIn("count_by does not take 2", requested._defines(
             right.replace("author, year=None", "author"), asked))
 
+    def test_the_examples_a_request_says_are_its_true_tests(self):
+        from research.v698 import requested
+        from research.v700.fixing import _agreed_by_tests
+        said = requested.stated("I want heronArea to return the heron area."
+                                " For example, heronArea(3, 4, 5) should "
+                                "return 6.0.", {"heronArea"})
+        self.assertEqual(len(said), 1)
+        space = {}
+        exec("def heronArea(a, b, c):\n    s = (a + b + c) / 2\n    return "
+             "(s * (s - a) * (s - b) * (s - c)) ** 0.5\n" + said[0], space)
+        with self.assertRaises(AssertionError):
+            exec("def heronArea(a, b, c):\n    return a * b\n" + said[0], {})
+        # a string said in a sentence is a string, its full stop no number
+        said = requested.stated('reverseString should output it in reverse.'
+                                ' For example, reverseString("hi") should '
+                                'return "ih".', {"reverseString"})
+        exec("def reverseString(s):\n    return s[::-1]\n" + said[0], {})
+        # one answer holding what the person said: chosen
+        one = {"own ok": True, "passes": (0,), "gives": ("6.0",)}
+        self.assertEqual(_agreed_by_tests([one], 4, ("0",), stated=1), [one])
+        self.assertEqual(_agreed_by_tests([one], 4, ("0",)), [])
+
     def test_a_test_made_a_probe_of_what_code_gives(self):
         from research.v698 import requested
         probe = requested._probe("from shelf.books import Book\n"

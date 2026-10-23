@@ -492,6 +492,39 @@ def interface(statement: str, held) -> dict:
     return out
 
 
+def stated(statement: str, names) -> list:
+    """The examples a request says of what the code will give, as tests:
+    `heronArea(3, 4, 5) should return 6.0` -> a test of heronArea -- read
+    by the request reader (v697 `coding.read`), of a function `names` has.
+    Said by the person, they hold: the code model's tests guess outputs
+    (CanItEdit's own changes pass 14 of 123 of them)."""
+    from research.v697 import coding
+    try:
+        read = coding.read(statement, "python")
+    except Exception:                           # noqa: BLE001
+        return []
+    entry = read.get("entry")
+    if not entry or entry not in names:
+        return []
+    out = []
+    for example in read.get("examples") or ():
+        value = example.get("value")
+        call = f"{entry}({', '.join(map(repr, example.get('args') or ()))})"
+        if isinstance(value, (int, float)) and not isinstance(value, bool) \
+                and (isinstance(value, float) or re.search(
+                    rf"\b{int(value)}\.\d", str(example.get("said", "")))):
+            # a number said to as many places as it is said (`14859.47`) --
+            # a number alone: a sentence's full stop made `'ih'` one, and
+            # every change right refused
+            places = re.search(r"\d\.(\d+)", str(example.get("said", "")))
+            room = 0.5 * 10 ** -len(places.group(1)) if places else 1e-9
+            out.append(f"_said = {call}\nassert abs(_said - {value!r}) <= "
+                       f"{room!r} + 1e-9 * abs({value!r})")
+        else:
+            out.append(f"assert {call} == {value!r}")
+    return out
+
+
 def _defines(text: str, asked: dict) -> str:
     """'' where code defines every name asked, each function with the
     parameters asked; else what it lacks."""
@@ -559,6 +592,17 @@ def checker(statement: str, held, path: str) -> dict:
                 left.append({"test": code, "why": why})
             else:
                 kept.append(code)
+        # the examples the request says, first: true where the code model's
+        # are guesses -- kept where the project as it is fails them, and
+        # asked of every change whether it does or not
+        asked = interface(statement, held)
+        names = {one.name.split(".")[-1] for one in
+                 held.index().symbols.values() if one.file == path} | \
+            set(asked)
+        said = stated(statement, names)
+        told = [code for code in said
+                if not _runs(root, code, _module(path))[0]]
+        kept = told + [code for code in kept if code not in told]
         own = [one for one in _own_tests(held) if _test_file(root, one)]
         # the calls a change is run on: those the tests make, and inputs
         # the code model chooses as what the request concerns -- inputs,
@@ -578,7 +622,6 @@ def checker(statement: str, held, path: str) -> dict:
     finally:
         shutil.rmtree(root, ignore_errors=True)
     need = max(1, (len(kept) + 1) // 2)
-    asked = interface(statement, held)
 
     def verify(changed: str) -> str:
         return verify_files({path: changed})
@@ -596,7 +639,8 @@ def checker(statement: str, held, path: str) -> dict:
             # else it is no change asked, as one breaking the project's
             # own tests is none
             own_ok = not _defines(changed, asked) and \
-                all(_test_file(place, one) for one in own)
+                all(_test_file(place, one) for one in own) and \
+                all(_runs(place, code, _module(path))[0] for code in said)
             # (tuples: grouped by, and said as they are)
             passed = tuple(at for at, code in enumerate(kept)
                            if _runs(place, code, _module(path))[0]) if own_ok else ()
@@ -633,7 +677,7 @@ def checker(statement: str, held, path: str) -> dict:
             "verify files": verify_files, "score": score,
             "tests": written, "kept": kept, "left": left, "own": own,
             "need": need, "calls": calls, "original": original,
-            "interface": asked}
+            "interface": asked, "stated": len(told), "said": said}
 
 
 def code_shaped(name: str) -> bool:
