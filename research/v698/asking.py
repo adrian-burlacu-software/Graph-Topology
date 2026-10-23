@@ -1295,6 +1295,26 @@ def _observed_python(text: str, code: str, space) -> dict:
     from research.v698 import observe
     seen = observe.observed(text, code)
     facts = list(seen["facts"])
+    from research.v698 import reading as reader
+    entry = seen.get("entry")
+    question = re.sub(r"```.*?```", " ", text, flags=re.S).strip()
+    read = reader.code_talk(question, {entry}) \
+        if entry and question and reader.taught() else None
+    wanted = observe.literals(text) if read is not None and \
+        read.aspect == "inputs" else []
+    if wanted:
+        # an input asked for a result (`what input to f gives 12?`): one
+        # found by running what the code model proposes -- not the result
+        # taken as the input, as the question's literal was
+        try:
+            found = observe.found_input(code, entry, wanted[-1])
+        except Exception:                       # noqa: BLE001
+            found = {"tried": 0}
+        seen["input"] = found
+        facts = [f"{found['call']} gives {wanted[-1]!r} -- run, one input "
+                 f"of {found['tried']} tried." if found.get("call") else
+                 f"I could not find an input that gives {wanted[-1]!r}: "
+                 f"none of the {found['tried']} I tried does."]
     summary = _summary(code) if seen.get("entry") else ""
     if summary:
         facts.insert(0 if not seen.get("asked") else 1,

@@ -2079,6 +2079,24 @@ def steps() -> list[Step]:
                            "--subject", "shell", "--subject", "plan")),
              _model_check(LLM / "reader-code59", 80),
              needs=("reader-index-talk",), cost="two hours", gpu=True),
+        Step("reader-inputs-talk", "the shared reader taught the inverse "
+                                   "of what a function gives: which input "
+                                   "gives a result (`what input to f gives "
+                                   "12?`, v698 `teach_code_ask` aspect "
+                                   "inputs) -- answered by running what "
+                                   "the code model proposes",
+             lambda: (_run("research.v698.teach_code_ask", "write"),
+                      _run("research.v698.teach_code_ask", "check"),
+                      _run("research.v698.teach_code_ask", "corpus"),
+                      _run("research.v689.teach_reader", "train",
+                           "--base", str(LLM / "reader-code59"),
+                           "--out", str(LLM / "reader-code61"),
+                           "--epochs", "1", "--rate", "2e-5",
+                           "--subject", "math", "--subject", "design",
+                           "--subject", "code", "--subject", "data",
+                           "--subject", "shell", "--subject", "plan")),
+             _model_check(LLM / "reader-code61", 80),
+             needs=("reader-change-said",), cost="an hour", gpu=True),
         Step("already", "whether a function already takes what a change "
                         "asks it to take, read against each parameter as "
                         "the code says what it is (v705 `teach_already`, "

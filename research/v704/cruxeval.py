@@ -66,22 +66,46 @@ def _value(text: str):
         return None
 
 
+def _leading(text: str):
+    """The Python literal a text begins with, and only it -- `[(4, 1)]. In
+    words: ...` is `[(4, 1)]` (the sentence after it read as part of it
+    made every value said wrong: 79 of 800 right, the architecture right
+    on most of the rest)."""
+    text = text.strip()
+    for end in range(len(text), 0, -1):
+        if end < len(text) and text[end] not in " .;,\n":
+            continue
+        piece = text[:end].strip()
+        if not piece:
+            continue
+        # (`2.` ending a sentence is 2, not the float 2.0)
+        for one in dict.fromkeys((piece.rstrip("."), piece)):
+            try:
+                return True, ast.literal_eval(one)
+            except (ValueError, SyntaxError, TypeError, MemoryError,
+                    RecursionError):
+                continue
+    return False, None
+
+
 def _said_values(said: str) -> list:
-    """Every Python literal the reply says: in backquotes, in a fence, or
-    the reply whole, and each run of it that reads as one."""
+    """The Python literals a reply says of what is asked: the reply whole,
+    or after what says a value (`gives`, `returns`, `==`), in a fence or
+    in backquotes too."""
     import re
     out = []
     pieces = re.findall(r"```(?:python)?\n(.*?)```", said, re.S) + \
         re.findall(r"`([^`]+)`", said) + [said]
     for piece in pieces:
-        for line in piece.splitlines():
-            line = line.strip().rstrip(".")
-            for part in (line, line.split(" gives ")[-1],
-                         line.split(" is ")[-1], line.split("returns ")[-1],
-                         line.split("== ")[-1], line.split(": ")[-1]):
-                value = _value(part.strip().rstrip("."))
-                if value is not None or part.strip() == "None":
-                    out.append(value)
+        found, value = _leading(piece) if len(piece) < 2000 else (False,
+                                                                   None)
+        if found:
+            out.append(value)
+        for marker in re.finditer(r"\b(gives|returns|return|is|==)\s",
+                                  piece):
+            found, value = _leading(piece[marker.end():][:2000])
+            if found:
+                out.append(value)
     return out
 
 
@@ -123,11 +147,21 @@ def input_check(row: dict):
     wanted = repr(_value(row["output"]))
 
     def check(turn, root):
+        from research.v698.observe import _written_call
         from research.v704.converse import text_of
         said = text_of(turn)
-        calls = re.findall(r"\bf\((.*)\)", said)
-        for args in calls[:6]:
-            if gives(row["code"], args) == wanted:
+        # each call written out, read whole by Python's parser (a greedy
+        # `f\((.*)\)` took the line to its last bracket: inputs found and
+        # right scored wrong)
+        calls, rest = [], said
+        for _ in range(6):
+            call = _written_call(rest, "f")
+            if call is None:
+                break
+            calls.append(call)
+            rest = rest[rest.index(call) + len(call):]
+        for call in calls:
+            if gives(row["code"], call[call.index("(") + 1:-1]) == wanted:
                 return True
         return False
     check.about = f"an input f gives {row['output'][:60]} for"

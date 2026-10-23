@@ -33,6 +33,9 @@ PASTED, CODE_TALK = 212.0, 211.0
 #: a question about the project's data (v701): before code talk, where it is
 #: one and what it names is in the data
 DATA_TALK = 211.5
+#: a question of the project's data nothing here answers: after every part
+#: (code talk 211, the page's code 210), before the conversation's own
+DATA_UNANSWERED = 209.5
 #: how sure code talk must be a question is its own for a guess of the
 #: data's to give way to it
 SURE_CODE = 0.9
@@ -1144,8 +1147,29 @@ def replies(session) -> list:
                 return False
             if found.looked.get("of the record"):
                 return True
-            if found.looked.get("ask which") or \
-                    found.looked.get("read as") == "no question":
+            # a name shaped as code (`ORDER_LIMIT`), said exactly as the
+            # project's code defines it, is the code's question where the
+            # data's answer is a place spelled otherwise (`where is
+            # ORDER_LIMIT set?` answered `nursery.order_limit in
+            # settings.yaml`)
+            held_ = Pj.project(_key(session))
+            if held_ is not None and any(
+                    re.fullmatch(r"[A-Z][A-Z0-9]*(_[A-Z0-9]+)+|[a-z]\w*_\w+|"
+                                 r"[a-z]+[A-Z]\w*", word) and
+                    held_.index().find(word) and
+                    word not in str(found.place or "")
+                    for word in (one.strip("?.,!'\"`") for one in
+                                 typed(memory).split())):
+                return False
+            # an answer whole of the records the question names (`which book
+            # is the oldest?`: Solaris, the earliest year) is no guess,
+            # however surely code talk reads the word `oldest`, a function's
+            # name, as its own
+            whole = found.value is not None and found.looked.get("target") \
+                and not found.looked.get("ask which") and \
+                not found.looked.get("nothing")
+            if not whole and (found.looked.get("ask which") or
+                              found.looked.get("read as") == "no question"):
                 # a guess of the data (made by lookup, or asking which field
                 # is meant) is the code's question where code talk reads it
                 # surely as its own (`what does oldest return when there
@@ -1205,6 +1229,59 @@ def replies(session) -> list:
             rule="a question about the project's data, read by the encoder, "
                  "looked up in the data's schema, carried out over what it "
                  "holds"))
+
+        def of_the_data(memory) -> str | None:
+            """The data file a question names a field or a value of, where
+            no part answers it -- or None."""
+            text, held = typed(memory), Pj.project(_key(session))
+            if pastes(memory) or held is None or not held.data():
+                return None
+            # what the data reader marks a question asking of (its target,
+            # field, value) that the data has -- not every word that is
+            # also a field's name (`what is my name?`)
+            asked = querying.read(text, querying.known(held))
+            if asked is None:
+                return None
+            files = {name for model in held.data().values() for name in (
+                model.path.rsplit("/", 1)[-1].lower(),
+                model.path.rsplit("/", 1)[-1].lower().rsplit(".", 1)[0])}
+            names = querying.known(held) - files
+            marked = [word.lower() for role in ("TARGET", "FIELD", "VALUE")
+                      for phrase in asked.spans.get(role, ())
+                      for word in str(phrase).split()]
+            # the file that holds what it names (not the first file the
+            # project has: `which member joined first?` "from config.yaml")
+            for model in held.data().values():
+                own = set()
+                for path in list(model.places) + list(model.collections):
+                    for part in querying._parts(path):
+                        own.update({part, querying._one(part)})
+                if any(one in own or querying._one(one) in own
+                       for one in marked):
+                    return model.path
+            found = querying._said_whole(held, [str(one).lower()
+                                                for one in asked.words])
+            return found[1].path if found else None
+
+        def unanswered_data(memory):
+            path = of_the_data(memory)
+            reply = asking._reply("data", typed(memory), (
+                f"I can't answer that from {path}: what it asks is more than "
+                f"I can look up in it."), {"query": None})
+            reply["code"]["answer"]["status"] = "unsure"
+            memory["turn"].answer = reply
+            return ANSWERED
+
+        # a question of the project's data that no part answers: said so,
+        # not left to the conversation's own (`what was the last season
+        # played?` of a table of seasons: "The last season was good. It was
+        # short, long, and special.")
+        out.append(Operator(
+            name="data unanswered", apply=unanswered_data,
+            proposes=lambda memory: of_the_data(memory) is not None,
+            utility=DATA_UNANSWERED,
+            rule="a question naming the project's data that nothing here "
+                 "answers: said so, not answered of the world"))
 
     if reading.taught():
         def talks(memory) -> bool:

@@ -156,6 +156,38 @@ class ObservedTests(unittest.TestCase):
         self.assertTrue(any("the second element (index 1)" in one
                             for one in seen["facts"]))
 
+    def test_the_call_asked_as_it_is_written(self):
+        from research.v698 import observe
+        code = ("def f(a, b, c):\n    out = dict()\n    for one in (a, b, c):"
+                "\n        out.update(dict.fromkeys(one))\n    return out\n")
+        seen = observe.observed("what does f((1, ), (1, ), (1, 2)) return?",
+                                code)
+        self.assertEqual(seen["facts"][0],
+                         "f((1, ), (1, ), (1, 2)) gives {1: None, 2: None}.")
+        seen = observe.observed("what does f(range(3), 'u') return?",
+                                "def f(xs, s):\n    return [s] * len(xs)\n")
+        self.assertIn("['u', 'u', 'u']", seen["facts"][0])
+
+    def test_an_input_found_is_one_run(self):
+        from research.v698 import observe
+
+        class Proposes:
+            def write(self, prompts, longest, samples, temperature):
+                return [["f(2)", "```python\nf(5)\n```", "f(nope"]]
+        code = "def f(n):\n    return n * 2 + 1\n"
+        found = observe.found_input(code, "f", 11, Proposes())
+        self.assertEqual(found, {"call": "f(5)", "tried": 2})
+        self.assertNotIn("call", observe.found_input(code, "f", 4,
+                                                     Proposes()))
+        self.assertEqual(observe.literals("what input to f gives [(4, 1), "
+                                          "(2, 3)]?"), [[(4, 1), (2, 3)]])
+
+    def test_code_fenced_is_no_pasted_table(self):
+        from research.v701.pasting import found
+        self.assertIsNone(found("```python\ndef f(text, pref):\n    a, b = "
+                                "1, 2\n    c, d = 3, 4\n    return a, b\n```"
+                                "\nwhat does f('a', 'b') return?"))
+
     def test_pasted_needs_no_word_of_asking(self):
         from research.v698.asking import pasted
         self.assertIsNotNone(pasted("how many times does this loop run?\n"
@@ -248,6 +280,27 @@ class DataAskedTests(unittest.TestCase):
             "TARGET": ["books"], "VALUE": ["250"]},
             "which books have more than 250 pages ?".split()), project)
         self.assertEqual(found.value, ["Dune", "Kindred"])
+
+    def test_a_field_without_its_records_and_a_place_said_whole(self):
+        from research.v701 import querying as Q
+        project = self.library()
+        # `joined` read, `member` not: the one collection with that field
+        found = Q.carry(self.asked("list", "none", {"FIELD": ["joined"]},
+                                   "which member joined first ?".split()),
+                        project)
+        self.assertEqual(found.value, "Grace Hopper")
+        project.put({"settings.yaml": "web:\n  port: 5000\n"})
+        found = Q._place_said(self.asked("none", "none", {},
+                                         "which port does the web answer on "
+                                         "?".split()), project)
+        self.assertEqual(found.value, 5000)
+
+    def test_a_number_written_as_text_is_one(self):
+        from research.v701.querying import _field_of
+        self.assertEqual(_field_of({"v": "17,956"}, "v"), 17956)
+        self.assertEqual(_field_of({"v": "$1,200.50"}, "v"), 1200.5)
+        self.assertEqual(_field_of({"v": "02139"}, "v"), "02139")
+        self.assertEqual(_field_of({"v": "1.96 m"}, "v"), "1.96 m")
 
     def test_the_most_of_a_time_is_the_latest(self):
         from research.v701 import querying as Q

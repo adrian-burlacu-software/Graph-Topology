@@ -86,7 +86,12 @@ def found(text: str) -> dict | None:
         rest = (text[:match.start()] + text[match.end():]).strip()
         return {"format": form, "text": inside, "rest": rest,
                 "name": named.group(0) if named else None}
-    lines = text.splitlines()
+    # code fenced as a language of its own is code, never a table's rows
+    # (`def f(text, pref):` and its lines, as wide in commas: nine of
+    # CRUXEval's pasted functions were held as a CSV)
+    lines = FENCE.sub(lambda match: "" if match.group(1).lower() not in (
+        "", "json", "yaml", "yml", "csv", "tsv") else match.group(0),
+        text).splitlines()
     # a JSON object or list, from a line that opens one to the line that
     # closes it
     for at, line in enumerate(lines):

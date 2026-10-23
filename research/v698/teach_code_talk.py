@@ -76,7 +76,10 @@ ASPECTS = ("none", "explain", "where", "size", "callers", "calls", "bugs",
            # what a project's index answers (`teach_code_ask.py`): a
            # constant's value, a class's fields, a function's tests, what it
            # answers to, what it gives in a situation said in words
-           "value", "fields", "tests", "cases", "outcome")
+           "value", "fields", "tests", "cases", "outcome",
+           # the inverse of `outcome`: which input gives a result
+           # (`teach_code_ask`)
+           "inputs")
 #: `described`: said by what it does, not named (`which function works out
 #: when a loan is due?`), found in the project by meaning
 SUBJECTS = ("none", "project", "file", "named", "last", "described")

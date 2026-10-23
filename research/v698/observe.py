@@ -153,6 +153,96 @@ def _given(said: str, count: int) -> list | None:
     return None
 
 
+def _written_call(said: str, entry: str) -> str | None:
+    """The call of `entry` a question writes out, outside its code, as it
+    writes it -- read by Python's own parser, so its brackets and strings
+    are whole (`f((1, ), (1, ), (1, 2))`, `f(dict(e=1), 'u')`, `f(range(100,
+    120))`): its literals picked out one by one lost tuples, nested lists
+    and every argument that is no literal (CRUXEval: 25 of 800 asked calls
+    run wrong or not at all)."""
+    outside = re.sub(r"```.*?```", " ", said, flags=re.S)
+    for found in re.finditer(rf"(?<![\w.]){re.escape(entry)}\s*\(", outside):
+        start = found.start()
+        for end in range(found.end(), len(outside)):
+            if outside[end] != ")":
+                continue
+            text = outside[start:end + 1]
+            try:
+                node = ast.parse(text, mode="eval").body
+            except SyntaxError:
+                continue
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) \
+                    and node.func.id == entry:
+                return text
+            break
+    return None
+
+
+def literals(said: str) -> list:
+    """The Python literals a question says outside its code, each whole --
+    the longest piece from each place one may begin that Python reads as a
+    literal (`[[1, 2], []]`, `'a, b'`)."""
+    outside = re.sub(r"```.*?```", " ", said, flags=re.S)
+    out, at = [], 0
+    while at < len(outside):
+        if outside[at] not in "[{('\"-0123456789" or (
+                at and (outside[at - 1].isalnum() or outside[at - 1] == "_")):
+            at += 1
+            continue
+        for end in range(len(outside), at, -1):
+            piece = outside[at:end].rstrip(" ?.!,;:")
+            try:
+                value = ast.literal_eval(piece)
+            except (ValueError, SyntaxError, TypeError, MemoryError,
+                    RecursionError):
+                continue
+            out.append(value)
+            at += len(piece)
+            break
+        else:
+            at += 1
+    return out
+
+
+#: what the code model is asked of an input that gives a result
+INPUT = ("Here is a Python function:\n```python\n{code}\n```\nGive an input "
+         "for which {entry} returns {wanted}. Answer with the call alone, as "
+         "{entry}(...).")
+#: inputs the code model proposes, each run
+TRIED = 8
+
+
+def found_input(source: str, entry: str, wanted, model=None) -> dict:
+    """An input that gives `wanted`: the code model proposes calls, each run
+    apart, the first giving it kept -- what is said is what was run, never
+    a guess (CRUXEval input prediction, 200 items: 135 found so against the
+    model alone's 93). {call, tried} or {tried} where none gives it."""
+    if model is None:
+        from research.v705 import coder
+        model = coder.big()
+    asked = INPUT.format(code=source.rstrip(), entry=entry,
+                         wanted=repr(wanted))
+    replies = model.write([asked], longest=120, samples=TRIED,
+                          temperature=0.8)[0]
+    calls = []
+    for reply in replies if isinstance(replies, list) else [replies]:
+        call = _written_call(reply.replace("```python", " ").replace(
+            "```", " "), entry)
+        if call and call not in calls:
+            calls.append(call)
+    if not calls:
+        return {"tried": 0}
+    seen = run(source, calls)
+    for one in seen.get("calls") or ():
+        try:
+            given = ast.literal_eval(one.get("value", ""))
+        except (ValueError, SyntaxError, TypeError):
+            continue
+        if given == wanted and type(given) is type(wanted):
+            return {"call": one["call"], "tried": len(calls)}
+    return {"tried": len(calls)}
+
+
 def _ordinal(at: int) -> str:
     words = ("first", "second", "third", "fourth", "fifth")
     return words[at] if at < len(words) else f"{at + 1}th"
@@ -195,12 +285,28 @@ def observed(said: str, source: str) -> dict:
     calls, kinds, own = [], [], []
     asked = None
     if functions:
-        function = functions[-1]
+        # the function the question names, else the last defined (CRUXEval
+        # defines helpers after `f`: the question read with the wrong name)
+        outside = re.sub(r"```.*?```", " ", said, flags=re.S)
+        named = [one for one in functions
+                 if re.search(rf"(?<![\w.]){re.escape(one.name)}(?!\w)",
+                              outside)]
+        function = (named or functions)[-1]
         entry = function.name
         out["entry"] = entry
         kinds = _kinds(function)
-        asked = _given(said, len(kinds))
-        if asked is not None:
+        written = _written_call(said, entry)
+        asked = None if written else _given(said, len(kinds))
+        if written:
+            # the call as the question writes it; its arguments, where each
+            # is a literal, for what the result is of them
+            calls.append(written)
+            try:
+                asked = [ast.literal_eval(one) for one in
+                         ast.parse(written, mode="eval").body.args]
+            except (ValueError, SyntaxError, TypeError):
+                asked = []
+        elif asked is not None:
             calls.append(f"{entry}({', '.join(map(repr, asked))})")
         own = list(calls)
         if kinds:

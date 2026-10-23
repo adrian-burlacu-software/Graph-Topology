@@ -200,8 +200,20 @@ def _holds(value, op: str, wanted) -> bool:
             "le": left <= right}.get(op, False)
 
 
+#: a number written as text, whole: thousands apart (`17,956`), with a
+#: currency's sign or as a percent -- read as the number it is (a table of
+#: viewers held "no numbers"); one with a unit (`1.96 m`) is left as said
+WRITTEN_NUMBER = re.compile(
+    # (a leading zero is a code's, not an amount's: `007`, `02139`)
+    r"[$€£]?(-?[1-9]\d{0,2}(?:,\d{3})+|-?(?:0|[1-9]\d*))(\.\d+)?%?")
+
+
 def _field_of(record: dict, name: str):
-    return record.get(name) if isinstance(record, dict) else None
+    value = record.get(name) if isinstance(record, dict) else None
+    if isinstance(value, str) and WRITTEN_NUMBER.fullmatch(value.strip()):
+        said = re.sub(r"[$€£%,]", "", value.strip())
+        return float(said) if "." in said else int(said)
+    return value
 
 
 def answer(text: str, held) -> Found | None:
@@ -217,7 +229,7 @@ def answer(text: str, held) -> Found | None:
         # books.csv`, none 1.0): not made one by lookup -- it was made a
         # question of the most pages. A record named by a value it holds,
         # said whole, is still one (`who wrote Kindred?`, none 0.98)
-        found = _by_value(text, held)
+        found = _by_value(text, held) or _place_said(asked, held)
         if found is not None:
             found.looked["read as"] = "no question"
         return found
@@ -229,6 +241,32 @@ def answer(text: str, held) -> Found | None:
             found.looked["read as"] = "no question"
         return found
     return carry(asked, held)
+
+
+def _place_said(asked: Asked, held) -> Found | None:
+    """A place of the data the question says whole -- every part of its
+    path, two or more (`which port does the web answer on?`: web.port) --
+    its value; None where no place, or more than one, is so said."""
+    said = {str(one).lower() for one in asked.words} | \
+        {_one(str(one).lower()) for one in asked.words}
+    found = []
+    for model in held.data().values():
+        if model.error:
+            continue
+        for path in model.places:
+            parts = _parts(path)
+            if "[]" not in path and len(parts) >= 2 and all(
+                    part in said or _one(part) in said for part in parts):
+                found.append((model, path))
+    if len(found) != 1:
+        return None
+    model, path = found[0]
+    values = _at(model.value, path)
+    if not values:
+        return None
+    value = values[0] if len(values) == 1 else values
+    return Found(f"{path} in {model.path} is {_said_value(value)}.", value,
+                 model.path, path, asked, {"place": path})
 
 
 def _unread(text: str, asked: Asked, held) -> Found | None:
@@ -614,6 +652,15 @@ def carry(asked: Asked, held) -> Found | None:
             target = holder
             spans["TARGET"] = [target]
         asked.spans = spans
+    if not target and asked.spans.get("FIELD"):
+        # a field read, its records not (`which member joined first?` read
+        # with `joined` alone): the one collection that has that field
+        field_ = asked.spans["FIELD"][0]
+        having = [group for group in _groups(held)
+                  if any(_named(field_, str(one)) for one in group[2])]
+        if len(having) == 1:
+            target = having[0][3] or having[0][1] or field_
+            asked.spans = {**asked.spans, "TARGET": [target]}
     if not target:
         return None
     asked.spans = _sorted_out(held, asked.spans)

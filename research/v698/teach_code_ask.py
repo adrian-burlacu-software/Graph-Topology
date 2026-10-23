@@ -81,6 +81,12 @@ ASKS = {
                "situation or for one particular input, the situation said "
                "in words (when a list is empty, for an unknown command, "
                "when the file is missing, for a negative number)",
+    # the inverse: an output given, an input asked (CRUXEval's input
+    # prediction -- `what input to f gives 12?` read as no code talk)
+    "inputs": "which input or arguments make the function {n} return or "
+              "give one particular result, that result written out (a "
+              "number, a string, a list) -- the input asked for, not the "
+              "output",
 }
 #: what the check offers, a letter each: the new aspects and the ones a
 #: question of a symbol is most often confused with
@@ -90,6 +96,7 @@ CHOICES = {
     "tests": "whether there is a test for something",
     "cases": "which commands, routes or inputs a function handles",
     "outcome": "what a function returns or does in a particular situation",
+    "inputs": "which input makes a function return a particular result",
     "where": "where something is, or which function or class does a thing",
     "callers": "what calls, uses or imports something",
     "explain": "what something is or does, in general",
@@ -103,6 +110,18 @@ JOBS = [
     ("tests", "named", "function", None),
     ("cases", "named", "dispatch", None),
     ("outcome", "named", "function", None),
+    ("inputs", "named", "function", None),
+    # (25 kept of the first twelve prompts: said more ways)
+    ("inputs", "named", "function",
+     "what value to give the function {n} so that it returns a result "
+     "you write out exactly (a number, a list, a string in quotes) -- "
+     "asking for the argument, short questions like 'what input to {n} "
+     "gives ...?', 'which x makes {n}(x) == ...?'"),
+    ("inputs", "named", "function",
+     "which arguments, called with, make the function {n} give back a "
+     "particular value you name -- asking for the call that does it, as "
+     "'find an input for which {n} returns ...', 'what should I pass to "
+     "{n} to get ...?', '{n} gives ... for what?'"),
     ("where", "named", "constant",
      "where the constant {n} is defined, or which file has it"),
     ("where", "named", "class",
@@ -241,7 +260,13 @@ def jobs() -> list:
     found = symbols()
     rng = random.Random(SEED)
     out = []
+    times: dict = {}
     for aspect, subject, kind, asked in JOBS:
+        # a job said again another way: its own keys (`inputs`, thrice)
+        times[(aspect, subject, kind)] = times.get((aspect, subject,
+                                                    kind), 0) + 1
+        again = "" if times[(aspect, subject, kind)] == 1 else \
+            f"|{times[(aspect, subject, kind)]}"
         pool = [one for one in found[kind] if not _held(one["name"])]
         for at in range(EACH if subject == "named" else DESCRIBED):
             if not pool:
@@ -263,8 +288,8 @@ def jobs() -> list:
                 prompt += (f"Never write the name {one['name']}, nor any "
                            f"word of the code: say what it is in everyday "
                            f"words. ")
-            out.append((f"{aspect}|{subject}|{kind}|{at}", prompt + K.STYLE,
-                        meta))
+            out.append((f"{aspect}|{subject}|{kind}|{at}{again}",
+                        prompt + K.STYLE, meta))
     settings = [one for one in _settings() if not _held(one[0])]
     for at in range(SETTINGS):
         if not settings:
@@ -360,11 +385,30 @@ def check(batch: int = 24) -> dict:
     rows = [json.loads(line) for line in WRITTEN.open(encoding="utf-8")]
     todo = [(row["meta"], line) for row in rows for line in row["lines"]
             if _asking(line)]
+    # each line judged once: what was checked before kept as it was (4253
+    # lines took fifty minutes to judge again for one aspect added)
+    before = {}
+    if CHECKED.exists():
+        for line in CHECKED.open(encoding="utf-8"):
+            one = json.loads(line)
+            before[(json.dumps(one["meta"], sort_keys=True), one["line"])] = \
+                one["kept"]
+    judged = [(meta, line, before[(json.dumps(meta, sort_keys=True), line)])
+              for meta, line in todo
+              if (json.dumps(meta, sort_keys=True), line) in before]
+    todo = [(meta, line) for meta, line in todo
+            if (json.dumps(meta, sort_keys=True), line) not in before]
     teacher = Teacher()
     options = list(CHOICES)
-    letters = "ABCDEFGHI"
+    letters = "ABCDEFGHIJ"
     counts: dict = {}
     with CHECKED.open("w", encoding="utf-8") as out:
+        for meta, line, kept in judged:
+            key = f"{meta['aspect']}|{meta['subject']} " + (
+                "kept" if kept else "left")
+            counts[key] = counts.get(key, 0) + 1
+            out.write(json.dumps({"meta": meta, "line": line,
+                                  "kept": kept}) + "\n")
         for at in range(0, len(todo), batch):
             chunk = todo[at:at + batch]
             asked = [at for at, (meta, _) in enumerate(chunk)
