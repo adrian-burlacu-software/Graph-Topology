@@ -1182,6 +1182,20 @@ def steps() -> list[Step]:
              _lines_check(DATA / "canitedit" / "test.jsonl", 105,
                           "105 when made"),
              cost="a minute"),
+        Step("cruxeval", "CRUXEval's 800 short Python functions, each with "
+                         "an input and the output it gives (what pasted "
+                         "code gives, and what gives it)",
+             lambda: _run("research.v704.cruxeval", "fetch"),
+             _lines_check(DATA / "cruxeval" / "test.jsonl", 800,
+                          "800 when made"),
+             cost="a minute"),
+        Step("wtq", "WikiTableQuestions: questions of tables, 200 said, "
+                    "each table a project of its own",
+             lambda: (_run("research.v704.wtq", "fetch"),
+                      _run("research.v704.wtq", "projects")),
+             _lines_check(DATA / "wtq" / "test.jsonl", 18000,
+                          "18486 when made"),
+             cost="a few minutes"),
         Step("humanevalfix-py", "the same bugs in Python (v699 rung 4)",
              lambda: _run("research.v696.bugs", "fetch", "python"),
              _lines_check(DATA / "humanevalfix" / "python.jsonl", 160,

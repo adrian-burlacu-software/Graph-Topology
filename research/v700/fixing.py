@@ -410,8 +410,27 @@ def _lines_changed(part: str, made: str) -> tuple:
     return out, put
 
 
+#: of a change keeping what the code gives, how many calls the code as it
+#: is must give a value for (not an error), for it to be the oracle
+KEPT_CALLS = 3
+
+
+def _kept_what_it_gives(rows: list, original=()) -> list:
+    """A change keeping what the code gives (the reader's `same`: `make it
+    loop once`): the changes giving exactly what the code as it is gives on
+    every call -- the code the oracle, no test's guessed output asked --
+    where it gives values for enough calls to be one."""
+    original = tuple(original or ())
+    errors = re.compile(r"^[A-Z]\w*(Error|Exception)$|^ran past$")
+    if sum(1 for one in original if not errors.match(str(one))) < \
+            KEPT_CALLS:
+        return []
+    return [row for row in rows if row.get("own ok") and
+            tuple(row.get("gives") or ()) == original]
+
+
 def _agreed_by_tests(rows: list, tests: int, original=(),
-                     stated: int = 0) -> list:
+                     stated: int = 0, keeps: bool = False) -> list:
     """The changes the tests of what was asked choose, as CodeT chooses
     (Chen et al. 2022), and what they do, as AlphaCode clusters: the
     changes that keep the project's own tests, grouped by the tests of
@@ -424,6 +443,8 @@ def _agreed_by_tests(rows: list, tests: int, original=(),
     by none. The heaviest group, where answers written apart agree on it
     (two or more), or one passes every test there is (two or more); else
     none: a change one answer wrote is a guess."""
+    if keeps:
+        return _kept_what_it_gives(rows, original)
     groups: dict = {}
     original = tuple(original or ())
     for row in rows:
@@ -1247,7 +1268,8 @@ def _change_once(statement: str, held, subject, key=None,
                         row["text"])
             chosen = _agreed_by_tests(passed, context.get("tests", 1),
                                       context.get("original"),
-                                      context.get("stated", 0))
+                                      context.get("stated", 0),
+                                      context.get("keeps", False))
             if len(chosen) >= 2 or round_ + 1 >= context.get(
                     "rounds", VERIFIED_ROUNDS):
                 break
@@ -1372,7 +1394,8 @@ def _change_once(statement: str, held, subject, key=None,
         # the changes the tests of what was asked choose, over all of them
         chosen = _agreed_by_tests(passed, context.get("tests", 1),
                                   context.get("original"),
-                                  context.get("stated", 0))
+                                  context.get("stated", 0),
+                                  context.get("keeps", False))
         tests = context.get("tests", 1)
         for row in passed:
             row["verified"] = row in chosen

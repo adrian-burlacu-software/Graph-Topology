@@ -414,7 +414,8 @@ def _act(read, text: str, session, memory) -> dict | None:
                         rf"(?<!\w){re.escape(subject.name.split('.')[-1])}"
                         rf"(?!\w)", text) else \
                         f"{subject.name.split('.')[-1]}: {text}"
-                    check = requested.checker(stated, held, path_)
+                    check = requested.checker(
+                        stated, held, path_, keeps=read.aspect == "same")
                     # a name made another everywhere it is used, where
                     # the request's tests hold for it (`rename
                     # parse_isbn to clean_isbn everywhere`: two lines of
@@ -489,6 +490,7 @@ def _act(read, text: str, session, memory) -> dict | None:
                                    "rounds": 1 if more else 3,
                                    "tests": len(check["kept"]),
                                    "stated": check.get("stated", 0),
+                                   "keeps": check.get("keeps", False),
                                    "original": check["original"],
                                    "more": more,
                                    "requested": {

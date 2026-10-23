@@ -328,17 +328,26 @@ INPUTS = ("For example, asked \"count_words should ignore commas\" of\n"
           "per line, no results, no asserts, in one ```python block.")
 #: inputs asked for, in samples
 INPUT_SAMPLES = 3
+#: of a change keeping what the code gives: calls that use the code well
+#: -- every case of it, not those the change makes different (none is)
+KEPT_INPUTS = ("A programmer asked for this change to their Python project, "
+               "one that keeps what the code gives: \"{statement}\"\nThe file "
+               "{path}, as it is now:\n```python\n{text}\n```\nWrite 8 calls "
+               "of its functions with literal inputs that use every case of "
+               "the code -- usual inputs, edge cases, small and larger ones "
+               "-- only the calls, one per line, no results, no asserts, in "
+               "one ```python block.")
 
 
-def inputs(statement: str, held, path: str) -> list:
+def inputs(statement: str, held, path: str, keeps: bool = False) -> list:
     """Calls of `path`'s functions the code model chooses as what the
-    request concerns, inputs only: [code]."""
+    request concerns -- or, where the change keeps what the code gives,
+    that use the code well: inputs only, [code]."""
     from research.v705 import coder
     now = _now(held, path)
-    asked = INPUTS.format(statement=statement, path=path,
-                          text=held.files[path][:6000],
-                          now=("Run as it is now:\n" + "\n".join(now) + "\n")
-                          if now else "")
+    asked = (KEPT_INPUTS if keeps else INPUTS).format(
+        statement=statement, path=path, text=held.files[path][:6000],
+        now=("Run as it is now:\n" + "\n".join(now) + "\n") if now else "")
     held_ = coder.big()
     held_.torch.manual_seed(zlib.crc32(asked.encode()))
     replies = held_.write([asked], longest=200, samples=INPUT_SAMPLES,
@@ -564,10 +573,12 @@ def _defines(text: str, asked: dict) -> str:
     return ""
 
 
-def checker(statement: str, held, path: str) -> dict:
+def checker(statement: str, held, path: str, keeps: bool = False) -> dict:
     """The check of a change of `path`: {verify, tests, kept, own} --
     `verify(changed text)` says '' where the change holds, else why; None
-    where no test tells the project as it is from a change."""
+    where no test tells the project as it is from a change. `keeps`: the
+    change keeps what the code gives (the reader's aspect `same`) -- the
+    code as it is the oracle, on calls that use it well."""
     if not path.endswith(".py") or path not in held.files:
         return {"verify": None, "why": "not Python"}
     try:
@@ -610,7 +621,7 @@ def checker(statement: str, held, path: str) -> dict:
         # a change gives badly (every test it wrote of `strip dots too`
         # held already, or expected the dashes kept)
         try:
-            chosen = inputs(statement, held, path)
+            chosen = inputs(statement, held, path, keeps)
         except Exception:                       # noqa: BLE001
             chosen = []
         calls = _calls(written + chosen, held, path)
@@ -677,7 +688,8 @@ def checker(statement: str, held, path: str) -> dict:
             "verify files": verify_files, "score": score,
             "tests": written, "kept": kept, "left": left, "own": own,
             "need": need, "calls": calls, "original": original,
-            "interface": asked, "stated": len(told), "said": said}
+            "interface": asked, "stated": len(told), "said": said,
+            "keeps": keeps}
 
 
 def code_shaped(name: str) -> bool:

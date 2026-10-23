@@ -45,8 +45,9 @@ SEED = 7062
 #: prompts per kind of what is changed, and samples of each
 EACH, SAMPLES = 45, 2
 #: each kept message taught this many times (beside 43 000 changes that
-#: name their code)
-REPEAT = 3
+#: name their code); one naming a function, said again with this many
+#: other functions' names
+REPEAT, SWAPS = 3, 6
 
 #: what the teacher is asked of each kind (its examples of no project the
 #: conversation tests have)
@@ -77,10 +78,31 @@ JOBS = {
              "the language now and then (forms like 'python function that "
              "returns ...', 'a function: is ...?', 'function to ...', "
              "'javascript: ...')"),
+    # a change of how a function works keeping what it gives (CanItEdit:
+    # `change find_non_pair so it loops over the list once`, `move the
+    # frequency calculations to the constructor ... semantically
+    # identical`): the code as it is, its oracle
+    "same": ("asking that the function {n} be rewritten so that it gives "
+             "exactly the same results as now but works differently -- "
+             "faster, in one pass, with less memory, without recursion, "
+             "more readable, split into helpers, as a class, without a "
+             "library it uses, its work moved elsewhere. Say what is to be "
+             "different about how it works; some say the results stay the "
+             "same, some take that as understood (forms like 'make {n} ... "
+             "', 'rewrite {n} to ...', 'refactor {n} so ...', 'optimize {n} "
+             "...')"),
 }
-#: what each kind of job is taught as: (act, subject)
-TAUGHT = {"constant": ("change", "described"),
-          "function": ("change", "described"), "make": ("make", "none")}
+#: what each kind of job is taught as: (act, aspect, subject)
+TAUGHT = {"constant": ("change", "none", "described"),
+          "function": ("change", "none", "described"),
+          "make": ("make", "none", "none"),
+          "same": ("change", "same", "named")}
+#: the kinds taught now: `same` (2026-10-23) was taught a reader of its own
+#: (llm/reader-code60, an aspect `same`) that read `make find_non_pair loop
+#: over the list once` as no such change and `rename load_books` as one --
+#: CanItEdit 13/66/12 against reader-code59's 16/65/10, a library change
+#: lost: not the default, and not in the corpus reader-code59 is built from
+KINDS = ("constant", "function", "make")
 #: a change pointing back at what was said before it (teaching only)
 POINTED = re.compile(r"\b(it|that|this|those|these|them)\b", re.I)
 
@@ -90,8 +112,11 @@ def jobs() -> list:
     rng = random.Random(SEED)
     out = []
     for kind, asked in JOBS.items():
-        act, subject = TAUGHT[kind]
-        pool = [one for one in found["function" if kind == "make" else kind]
+        if kind not in KINDS:
+            continue
+        act, aspect, subject = TAUGHT[kind]
+        pool = [one for one in found["function" if kind in ("make", "same")
+                                     else kind]
                 if not A._held(one["name"])]
         # a setting said by what it controls: one whose comment says it
         # (`STEPS = 12` alone tells nothing of it)
@@ -100,13 +125,16 @@ def jobs() -> list:
                 r"=\s*-?[\d._]+\s*$", one["code"]))] or pool
         for at in range(EACH):
             one = rng.choice(pool)
-            meta = {"act": act, "aspect": "none", "subject": subject,
+            meta = {"act": act, "aspect": aspect, "subject": subject,
                     "kind": kind, "name": one["name"]}
             prompt = (f"Here is part of a program, from {one['file']}:\n"
                       f"```python\n{one['code']}\n```\nWrite 12 different "
                       f"messages a programmer might type to a coding "
-                      f"assistant {asked}. Never write the name "
-                      f"{one['name']}, nor any word of the code. ")
+                      f"assistant {asked.format(n=one['name'])}. ")
+            prompt += (f"Write {one['name']} exactly so in every message. "
+                       if subject == "named" else
+                       f"Never write the name {one['name']}, nor any word of "
+                       f"the code. ")
             prompt += ("A few short, a few beginning with 'and' or 'also', "
                        "as said just after another request. Each asks for "
                        "the change; none says it is done. "
@@ -117,9 +145,14 @@ def jobs() -> list:
 
 
 def _kept(lines: list, meta: dict) -> list:
-    """Lines that never say the name, nor all of its words."""
+    """Lines that never say the name, nor all of its words -- or, of a
+    function named, that say it as it is."""
     out = []
     name = meta["name"]
+    if meta["subject"] == "named":
+        return [line for line in dict.fromkeys(lines)
+                if 6 <= len(line) <= 200 and re.search(
+                    rf"(?<![\w.]){re.escape(name)}(?!\w)", line)]
     parts = [one for one in re.split(r"[_.]", name.lower()) if len(one) >= 3]
     for line in dict.fromkeys(lines):
         lowered = line.lower()
@@ -168,6 +201,29 @@ def write() -> None:
 MEANING = {"do": "do something to code: write it, or change what it does",
            "other": "answer a question, or nothing: it only remarks"}
 ORDERS = (("do", "other"), ("other", "do"))
+#: and of a change kept what it gives: asked again, in both orders
+KEEPS = {"same": "keep what the code returns and does exactly as it is, "
+                 "changing only how it works",
+         "different": "change what the code returns or does"}
+KEEP_ORDERS = (("same", "different"), ("different", "same"))
+
+
+def _judged(judge, lines: list, meaning: dict, orders) -> list:
+    """What the judge chooses of each line, in every order of the choice:
+    [[choice, ...] per line]."""
+    chosen = [[] for _ in lines]
+    for order in orders:
+        options = "\n".join(f"{letter}) {meaning[one]}"
+                            for letter, one in zip("AB", order))
+        prompts = [f"Message to a coding assistant: \"{line}\"\nThe person "
+                   f"wants the assistant to:\n{options}\nLetter:"
+                   for line in lines]
+        for place, reply in enumerate(judge.write(prompts, longest=3)):
+            reply = reply[0] if isinstance(reply, list) else reply
+            letter = str(reply).strip()[:1].upper()
+            chosen[place].append(order["AB".index(letter)]
+                                 if letter and letter in "AB" else "?")
+    return chosen
 
 
 def check(batch: int = 24) -> dict:
@@ -181,22 +237,18 @@ def check(batch: int = 24) -> dict:
     with CHECKED.open("w", encoding="utf-8") as out:
         for at in range(0, len(todo), batch):
             chunk = todo[at:at + batch]
-            chosen = [[] for _ in chunk]
-            for order in ORDERS:
-                options = "\n".join(f"{letter}) {MEANING[one]}"
-                                    for letter, one in zip("AB", order))
-                prompts = [f"Message to a coding assistant: \"{line}\"\nThe "
-                           f"person wants the assistant to:\n{options}\n"
-                           f"Letter:" for _, line in chunk]
-                for place, reply in enumerate(judge.write(prompts,
-                                                          longest=3)):
-                    reply = reply[0] if isinstance(reply, list) else reply
-                    letter = str(reply).strip()[:1].upper()
-                    chosen[place].append(order["AB".index(letter)]
-                                         if letter and letter in "AB"
-                                         else "?")
-            for (meta, line), both in zip(chunk, chosen):
-                kept = both == ["do", "do"]
+            chosen = _judged(judge, [line for _, line in chunk], MEANING,
+                             ORDERS)
+            # a change kept what it gives, judged so too
+            same = [place for place, (meta, _) in enumerate(chunk)
+                    if meta["aspect"] == "same"]
+            kept_same = dict(zip(same, _judged(
+                judge, [chunk[place][1] for place in same], KEEPS,
+                KEEP_ORDERS))) if same else {}
+            for place, ((meta, line), both) in enumerate(zip(chunk, chosen)):
+                kept = both == ["do", "do"] and (
+                    meta["aspect"] != "same" or
+                    kept_same.get(place) == ["same", "same"])
                 key = f"{meta['kind']} " + ("kept" if kept else "left")
                 counts[key] = counts.get(key, 0) + 1
                 out.write(json.dumps({"meta": meta, "line": line,
@@ -213,11 +265,12 @@ def corpus() -> dict:
     from research.v702 import teach_shell as S
     rows = [json.loads(line) for line in CHECKED.open(encoding="utf-8")]
     rng = random.Random(SEED)
+    functions = [one["name"] for one in A.symbols()["function"]]
     out = {"train": [], "valid": []}
     shell = {"train": [], "valid": []}
     data = {"train": [], "valid": []}
     for one in rows:
-        if not one["kept"]:
+        if not one["kept"] or one["meta"]["kind"] not in KINDS:
             continue
         split = "valid" if A._held(one["meta"]["name"]) else "train"
         if one["meta"]["act"] == "change" and POINTED.search(one["line"]):
@@ -228,10 +281,34 @@ def corpus() -> dict:
         if not said:
             continue
         meta = one["meta"]
-        for _ in range(REPEAT if split == "train" else 1):
-            out[split].append(K.record(said, ["O"] * len(said), meta["act"],
-                                       "none", meta["subject"],
-                                       f"{meta['act']} said"))
+        if meta["subject"] == "named":
+            # the name marked where it is said, and said again as other
+            # functions are named: what is taught is the form, not names
+            others = [name for name in functions
+                      if A._held(name) == (split == "valid")
+                      and name != meta["name"]]
+            for name in [meta["name"]] + rng.sample(others,
+                                                    min(SWAPS, len(others))):
+                line = re.sub(rf"(?<![\w.]){re.escape(meta['name'])}(?!\w)",
+                              lambda _, name=name: name, one["line"])
+                words_ = K.words(line)
+                roles = ["O"] * len(words_)
+                span = K._match(words_, name)
+                if span is None:
+                    continue
+                K._mark(roles, span, "SUBJ")
+                made = K.record(words_, roles, meta["act"], meta["aspect"],
+                                "named", f"{meta['act']} {meta['aspect']}")
+                if rng.random() < K.KNOWN:
+                    made["tags"] = ["CODE" if role.endswith("SUBJ") else ""
+                                    for role in roles]
+                out[split].append(made)
+        else:
+            for _ in range(REPEAT if split == "train" else 1):
+                out[split].append(K.record(said, ["O"] * len(said),
+                                           meta["act"], meta["aspect"],
+                                           meta["subject"],
+                                           f"{meta['act']} said"))
         shell[split].append(S._record(said, ["O"] * len(said), "none",
                                       f"{meta['act']} said"))
         lowered = [str(word).lower() for word in said]

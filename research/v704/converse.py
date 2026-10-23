@@ -416,7 +416,8 @@ def main(argv=None) -> int:
     parser.add_argument("--url", default="http://127.0.0.1:8697")
     parser.add_argument("--area", default=None)
     parser.add_argument("--suite", default="suite",
-                        choices=("suite", "heldout", "canitedit"),
+                        choices=("suite", "heldout", "canitedit",
+                                 "cruxeval-o", "cruxeval-i", "wtq"),
                         help="heldout: fixtures/garden, kept apart from "
                              "the work it measures; canitedit: CanItEdit's "
                              "changes, each its own project (canitedit.py)")
@@ -437,6 +438,12 @@ def main(argv=None) -> int:
     elif options.suite == "canitedit":
         from research.v704 import canitedit
         SUITE = canitedit.suite()
+    elif options.suite.startswith("cruxeval"):
+        from research.v704 import cruxeval
+        SUITE = cruxeval.suite(options.suite[-1])
+    elif options.suite == "wtq":
+        from research.v704 import wtq
+        SUITE = wtq.suite()
     chosen = [(at, one) for at, one in enumerate(SUITE)
               if (options.area is None or one.area == options.area) and
               (not options.core or one.area in CORE) and

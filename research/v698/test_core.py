@@ -381,6 +381,19 @@ class RequestedTests(unittest.TestCase):
         self.assertEqual(_agreed_by_tests([one], 4, ("0",), stated=1), [one])
         self.assertEqual(_agreed_by_tests([one], 4, ("0",)), [])
 
+    def test_a_change_keeping_what_it_gives_is_held_to_the_code(self):
+        from research.v700.fixing import _agreed_by_tests
+        original = ("1", "4", "9", "TypeError")
+        same = {"own ok": True, "passes": (), "gives": original}
+        other = {"own ok": True, "passes": (), "gives": ("1", "4", "8",
+                                                         "TypeError")}
+        self.assertEqual(_agreed_by_tests([same, other, dict(other)], 3,
+                                          original, keeps=True), [same])
+        # too little the code gives to be an oracle: no choice
+        self.assertEqual(_agreed_by_tests([same], 3, ("1", "TypeError",
+                                                      "TypeError"),
+                                          keeps=True), [])
+
     def test_a_test_made_a_probe_of_what_code_gives(self):
         from research.v698 import requested
         probe = requested._probe("from shelf.books import Book\n"
