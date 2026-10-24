@@ -2123,23 +2123,25 @@ def steps() -> list[Step]:
                            "--subject", "shell", "--subject", "plan")),
              _model_check(LLM / "reader-code62", 80),
              needs=("reader-inputs-talk",), cost="an hour", gpu=True),
-        Step("reader-data-follow", "the same reader taught questions of data "
-                                   "asked one after another, from SParC's "
-                                   "train split and its SQL: what each asks "
-                                   "and whether of the records the last "
-                                   "answered with (`data_of`; v701 "
-                                   "`teach_data_sparc`) -- and none of them "
-                                   "code talk",
+        Step("reader-data-follow", "the same reader with one head more, "
+                                   "taught alone on top of it: whether a "
+                                   "question of data asks of the records "
+                                   "the last answered with (`data_of`, from "
+                                   "SParC's train split and its SQL; v701 "
+                                   "`teach_data_sparc`) -- not the default "
+                                   "(0.70; taught with the encoder it moved "
+                                   "the core)",
              lambda: (_run("research.v701.teach_data_sparc", "corpus"),
                       _run("research.v689.teach_reader", "train",
                            "--base", str(LLM / "reader-code62"),
-                           "--out", str(LLM / "reader-code64"),
-                           "--epochs", "1", "--rate", "2e-5",
+                           "--out", str(LLM / "reader-code66"),
+                           "--epochs", "3", "--rate", "1e-3",
+                           "--only", "data_of",
                            "--subject", "math", "--subject", "design",
                            "--subject", "code", "--subject", "data",
                            "--subject", "shell", "--subject", "plan")),
-             _model_check(LLM / "reader-code64", 80),
-             needs=("reader-values-talk", "sparc"), cost="an hour",
+             _model_check(LLM / "reader-code66", 80),
+             needs=("reader-values-talk", "sparc"), cost="minutes",
              gpu=True),
         Step("already", "whether a function already takes what a change "
                         "asks it to take, read against each parameter as "

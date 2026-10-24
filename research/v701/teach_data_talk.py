@@ -55,11 +55,10 @@ MOST_SEEDS, EACH_FILE = 360, 3
 SWAPS = 3
 
 ACTS = ("none", "value", "count", "list", "sum", "mean", "max", "min",
-        "exists",
-        # a question of the data asking what is not looked up here yet --
-        # grouped, sorted, the top few, nested, either-or (SParC's SQL says
-        # so: `research/v701/teach_data_sparc.py`): said so, not guessed
-        "beyond")
+        "exists")
+# (`beyond` -- a question asking what is not looked up yet, grouped or
+# sorted -- is answered by `querying` where a reader reads it; taught from
+# SParC's SQL it took the superlatives too, reader-code64: not taught)
 OPS = ("none", "eq", "ne", "gt", "lt", "ge", "le", "contains")
 ROLES = ("O", "B-TARGET", "I-TARGET", "B-FIELD", "I-FIELD", "B-VALUE",
          "I-VALUE")

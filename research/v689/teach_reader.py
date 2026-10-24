@@ -2834,7 +2834,8 @@ def taught_as(record: dict) -> tuple:
     if task == "code":
         return task, record["act"], record["aspect"], record["subject"]
     if task == "data":
-        return task, record["act"], record["op"]
+        # a record teaching only whether it is of the last (SParC's)
+        return task, record.get("act"), record.get("op"), record.get("of")
     if task in ("shell", "plan"):
         return task, record["act"]
     same = (all(op == "KEEP" for op in record.get("ops", ()))
@@ -3085,7 +3086,11 @@ def _weights(rows: list[dict]) -> list[float]:
 
 
 def train(base: Path, out: Path, epochs: int, batch: int, rate: float,
-          seed: int = 689) -> None:
+          seed: int = 689, only: tuple = ()) -> None:
+    """`only`: the heads taught, all else kept as the base has it -- its
+    encoder and every other head unmoved, so what it read it still reads
+    (a new head, `data_of`, taught with the encoder moved the shell's and
+    the superlatives' readings: reader-code65)."""
     import torch
     from transformers import (AutoModel, AutoTokenizer,
                               get_linear_schedule_with_warmup)
@@ -3157,8 +3162,24 @@ def train(base: Path, out: Path, epochs: int, batch: int, rate: float,
                             layer.weight.device)
         print(f"kept from {base.name}: {sorted(same)}, and the tags' and "
               f"dependencies' embeddings", flush=True)
-    optimiser = torch.optim.AdamW(net.parameters(), lr=rate,
-                                  weight_decay=0.01)
+    if only:
+        # the named heads alone taught, on the records that teach them
+        for parameter in net.parameters():
+            parameter.requires_grad = False
+        for name in only:
+            for part in ("sentence", "word"):
+                layer = getattr(net, part)
+                if name in layer:
+                    for parameter in layer[name].parameters():
+                        parameter.requires_grad = True
+        rows = [row for row in rows if any(
+            FIELDS[task_of(row)].get(name) in row for name in only)]
+        weights = [1.0] * len(rows)
+        print(f"only {list(only)}: {len(rows)} records, the rest kept",
+              flush=True)
+    optimiser = torch.optim.AdamW(
+        [one for one in net.parameters() if one.requires_grad], lr=rate,
+        weight_decay=0.01)
     steps = epochs * ((len(rows) + batch - 1) // batch)
     schedule = get_linear_schedule_with_warmup(optimiser, int(steps * 0.06),
                                                steps)
@@ -3173,6 +3194,9 @@ def train(base: Path, out: Path, epochs: int, batch: int, rate: float,
           flush=True)
     started = time.time()
     net.train()
+    if only:
+        # what is kept reads as it will be read: no dropout in it
+        net.encoder.eval()
     scores: dict = {}
     for epoch in range(epochs):
         drawn = rng.choices(rows, weights=weights, k=len(rows))
@@ -3186,6 +3210,8 @@ def train(base: Path, out: Path, epochs: int, batch: int, rate: float,
                 read = net(**inputs)
             loss = 0.0
             for name, head in spec["heads"].items():
+                if only and name not in only:
+                    continue
                 target = targets[name]
                 # A batch with nothing for a head says nothing to it: a mean
                 # over nothing is not a number.
@@ -3233,6 +3259,9 @@ def main(argv=None) -> int:
     parser.add_argument("--subject", action="append", default=[],
                         choices=sorted(SUBJECT_DATA),
                         help="also teach a subject's records (its folder)")
+    parser.add_argument("--only", action="append", default=[],
+                        help="teach this head alone, the rest kept as the "
+                             "base has it")
     options = parser.parse_args(argv)
     SUBJECTS[:] = options.subject
     if options.what == "corpus":
@@ -3242,7 +3271,7 @@ def main(argv=None) -> int:
         more(options.variants, options.processes)
     elif options.what == "train":
         train(Path(options.base), Path(options.out), options.epochs,
-              options.batch, options.rate)
+              options.batch, options.rate, only=tuple(options.only))
     elif options.what == "social":
         from research.v687 import build as store
         social(str(store.DEFAULT_STORE))

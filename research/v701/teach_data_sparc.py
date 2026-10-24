@@ -1,33 +1,25 @@
-"""Teaching the shared reader questions of data asked one after another,
-from SParC's train split: what each asks, of which fields, held to which
-values -- and whether it asks of the records the last one answered with
-(2026-10-24, follow-ups over data).
+"""Teaching the shared reader whether a question of data asks of the
+records the last one answered with, from SParC's train split (2026-10-24,
+follow-ups over data).
 
     python -m research.v701.teach_data_sparc corpus
 
 SParC (`research/v704/sparc.py`) gives each turn of a sequence the SQL
 that answers it. Read at teach time (`parse`: one SELECT, its filter a
 conjunction of `column op literal`; no nesting, grouping or sets), the SQL
-says what the reader is taught:
+says (`label`)
 
-    data_act   count/mean/sum/max/min of an aggregate; max/min of an order
-               kept to one; value where it asks of the one record the last
-               turn ordered out (`what is its id?`); else list
-    data_op    the new condition's comparison (`!=`: ne, `LIKE`: contains)
-    data_role  TARGET the selected columns (a table counted whole: its
-               name), FIELD the new condition's column, VALUE its literal --
-               marked where the words are found (`teach_data_talk.labelled`)
     data_of    last where the turn keeps the last turn's filter (or the one
-               record it ordered out), said or not (`how many are there?`);
+               record it ordered out, or all of a table it showed whole, a
+               filter put on them now), said or not (`how many are there?`);
                else none
 
+-- and that alone is taught (`corpus`): the act, op and roles it also
+reads off the SQL are another way of labelling than the reader's own, and
+taught beside it they cost the core five questions (reader-code63, -64).
 A turn after one not read is left out (whether it leans on it is not
-known), and so is a turn with two new conditions. As many asked of the last
-are taught as not (SParC's ways of labelling a fifth of the reader's own,
-not more: all 4 831 cost the core six questions). A turn the reader in use
-reads as asking something done is taught to code talk as none (`show the
-number for each shop` was read as a change, and the data file written) --
-only those: a question of a constant is code talk's.
+known), so is a turn with two new conditions, and one sorted or of the top
+few (`beyond`, `OUT_OF_REACH`). As many asked of the last are taught as not.
 
 Only train is taught from; dev is what is said (`research/v704/sparc.py`).
 """
@@ -206,69 +198,47 @@ def labelled_turns() -> list:
 
 
 def corpus() -> dict:
-    from research.v701 import teach_data_talk as D
+    """SParC's turns as the reader is taught them: whether each asks of the
+    records the last answered with (`data_of`) -- that alone. Its act, op
+    and roles, read off the SQL, are another way of labelling than the
+    reader's own: taught beside it (reader-code63, -64) superlatives were
+    read `beyond`, the asked-for words left unmarked, and a change asked
+    (`rename the library to Hillside Library`) no code talk -- the core
+    lost five questions. A record without a head's field teaches it
+    nothing (`teach_reader._batch`)."""
     from research.v698 import teach_code_talk as K
     rng = random.Random(SEED)
     rows = {"train": [], "valid": []}
-    code = {"train": [], "valid": []}
     held = {}
-    from research.v698 import reading
     for at, said, got in labelled_turns():
+        if "of" not in got:
+            continue
         part = held.setdefault(at, "valid" if rng.random() < HELD
                                else "train")
-        # what is asked, as the reader's own teaching marks it: the field
-        # asked for, or the records' name where the question says it
-        # (`list the books published before 1970`: books)
-        spans = {"TARGET": [one for name in got["spans"].get("TARGET", []) +
-                            got["table"] for one in _spelled(name)]}
-        if "FIELD" in got["spans"]:
-            spans["FIELD"] = _spelled(got["spans"]["FIELD"][0])
-            spans["VALUE"] = got["spans"]["VALUE"]
-        # the field asked for, and a filter's field, may go unsaid; its
-        # value may not
-        made = D.labelled(said, spans, optional=("TARGET", "FIELD"))
-        if made is None:
+        words = [str(one) for one in K.words(said)]
+        if not words:
             continue
-        words, roles = made
-        record = D._tagged(D.record(words, roles, got["act"], got["op"],
-                                    "sparc"), rng)
-        if "of" in got:
-            record["of"] = got["of"]
-        rows[part].append(record)
-        # no code talk, taught where the reader in use reads it as asking
-        # something done (`show the number for each shop` read as a change,
-        # the data file written) -- not every question of records: half of
-        # them it reads as asking of code, which the page gives the data,
-        # and a constant's is code talk's (`how many days does a loan last
-        # by default?`, lost when all 4 831 were taught none)
-        read = reading.code_talk(said)
-        if read is not None and read.act in reading.DOING + ("run",):
-            lowered = [str(one) for one in K.words(said)]
-            code[part].append(K.record(lowered, ["O"] * len(lowered),
-                                       "none", "none", "none", "sparc"))
+        rows[part].append({"task": "data", "words": words,
+                           "tags": [""] * len(words),
+                           "deps": [""] * len(words), "names": [],
+                           "said": " ".join(words), "source": "sparc",
+                           "how": "sparc", "of": got["of"]})
     counts = {}
     for part in rows:
-        # as many asked of the last as not: the reader's own teaching
-        # outweighs SParC's ways of labelling (17 710 records beside them)
-        last = [one for one in rows[part] if one.get("of") == "last"]
-        plain = [one for one in rows[part] if one.get("of") == "none"]
-        out = [one for one in rows[part] if one["act"] == "beyond"]
-        rows[part] = last + rng.sample(plain, min(len(plain), len(last))) + \
-            rng.sample(out, min(len(out), len(last)))
-        counts[f"{part} beyond"] = min(len(out), len(last))
+        # as many asked of the last as not
+        last = [one for one in rows[part] if one["of"] == "last"]
+        plain = [one for one in rows[part] if one["of"] == "none"]
+        rows[part] = last + rng.sample(plain, min(len(plain), len(last)))
         rng.shuffle(rows[part])
-        counts[f"{part} code"] = len(code[part])
         with (LLM / "data-talk-data" / f"{part}-sparc.jsonl").open(
                 "w", encoding="utf-8") as stream:
             for one in rows[part]:
                 stream.write(json.dumps(one) + "\n")
-        with (LLM / "code-talk-data" / f"{part}-sparc.jsonl").open(
-                "w", encoding="utf-8") as stream:
-            for one in code[part]:
-                stream.write(json.dumps(one) + "\n")
+        # (what an earlier corpus taught code talk: no longer)
+        (LLM / "code-talk-data" / f"{part}-sparc.jsonl").unlink(
+            missing_ok=True)
         counts[part] = len(rows[part])
-        counts[f"{part} last"] = sum(one.get("of") == "last"
-                                     for one in rows[part])
+        counts[f"{part} last"] = len(last)
     print(json.dumps(counts))
     return counts
 
