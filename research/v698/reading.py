@@ -163,9 +163,20 @@ def read(text: str, known=()) -> Reading | None:
                    [word for word, tag in zip(typed, tags) if tag], ways)
 
 
+#: what is asked done to code: one of them read surely, together, is code
+#: talk however the reader shares between them
+DOING = ("make", "change", "goal")
+
+
 def code_talk(text: str, known=()) -> Reading | None:
-    """The reading, where it is code talk sure enough to take the turn."""
+    """The reading, where it is code talk sure enough to take the turn --
+    the act surely, or a doing where the doings together are sure (`clean
+    this up`: change 0.53, goal 0.46 -- left to the social reading, it was
+    said goodbye to)."""
     found = read(text, known)
-    if found is None or found.act == "none" or found.chance < FLOOR:
+    if found is None or found.act == "none":
+        return None
+    if found.chance < FLOOR and not (found.act in DOING and sum(
+            chance for act, chance in found.acts if act in DOING) >= FLOOR):
         return None
     return found

@@ -2097,6 +2097,22 @@ def steps() -> list[Step]:
                            "--subject", "shell", "--subject", "plan")),
              _model_check(LLM / "reader-code61", 80),
              needs=("reader-change-said",), cost="an hour", gpu=True),
+        Step("reader-values-talk", "the same reader taught with the value "
+                                   "a question of what a function gives "
+                                   "ends on said in every shape (True, long "
+                                   "lists, dicts: `teach_code_ask._revalued`"
+                                   ") -- CRUXEval's `what input to f gives "
+                                   "False?` was read by the value's shape",
+             lambda: (_run("research.v698.teach_code_ask", "corpus"),
+                      _run("research.v689.teach_reader", "train",
+                           "--base", str(LLM / "reader-code59"),
+                           "--out", str(LLM / "reader-code62"),
+                           "--epochs", "1", "--rate", "2e-5",
+                           "--subject", "math", "--subject", "design",
+                           "--subject", "code", "--subject", "data",
+                           "--subject", "shell", "--subject", "plan")),
+             _model_check(LLM / "reader-code62", 80),
+             needs=("reader-inputs-talk",), cost="an hour", gpu=True),
         Step("already", "whether a function already takes what a change "
                         "asks it to take, read against each parameter as "
                         "the code says what it is (v705 `teach_already`, "

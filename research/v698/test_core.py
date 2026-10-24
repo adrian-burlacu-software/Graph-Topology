@@ -173,14 +173,26 @@ class ObservedTests(unittest.TestCase):
 
         class Proposes:
             def write(self, prompts, longest, samples, temperature):
-                return [["f(2)", "```python\nf(5)\n```", "f(nope"]]
+                return [["f(2)", "```python\nf('zebra42')\n```", "f(nope"]]
+        # searched alone: 11 // 2 tried, no model asked
         code = "def f(n):\n    return n * 2 + 1\n"
-        found = observe.found_input(code, "f", 11, Proposes())
-        self.assertEqual(found, {"call": "f(5)", "tried": 2})
+        self.assertEqual(observe.found_input(code, "f", 11, None)["call"],
+                         "f(5)")
         self.assertNotIn("call", observe.found_input(code, "f", 4,
                                                      Proposes()))
+        # ',saw' from a function turning text round: the wanted turned round
+        code = "def f(text):\n    return text[::-1]\n"
+        self.assertEqual(observe.found_input(code, "f", ",saw", None)["call"],
+                         "f('was,')")
+        # what the search cannot reach, the model's calls begin from
+        code = ("def f(s):\n    return 7 if s == ''.join(['zeb', 'ra']) + "
+                "str(6 * 7) else 0\n")
+        self.assertEqual(observe.found_input(code, "f", 7, Proposes())[
+            "call"], "f('zebra42')")
         self.assertEqual(observe.literals("what input to f gives [(4, 1), "
                                           "(2, 3)]?"), [[(4, 1), (2, 3)]])
+        self.assertEqual(observe.literals("what input to f gives False?"),
+                         [False])
 
     def test_code_fenced_is_no_pasted_table(self):
         from research.v701.pasting import found
@@ -245,6 +257,27 @@ class DataAskedTests(unittest.TestCase):
     def asked(self, act, op, spans, words):
         from research.v701.querying import Asked
         return Asked(act, 1.0, op, spans, words)
+
+    def test_what_the_reader_read_kept_below_its_floor(self):
+        from unittest import mock
+        from research.v698.project import Project
+        from research.v701 import querying as Q
+        root = Path(__file__).resolve().parents[1] / "v704" / "fixtures" / \
+            "library"
+        project = Project("library", str(root))
+        project.put({one.relative_to(root).as_posix(): one.read_text(
+            encoding="utf-8") for one in root.rglob("*") if one.is_file()
+            and "__pycache__" not in one.parts})
+        for act, words in (("max", "which book is the oldest ?"),
+                           ("none", "what does oldest return when there "
+                                    "are no books ?")):
+            asked = Q.Asked(act, 0.55, "none", {"TARGET": ["book"]},
+                            words.rstrip(" ?").split())
+            asked.acts = [act, "min", "list", "value"]
+            with mock.patch.object(Q, "read", return_value=asked):
+                found = Q.answer(words, project)
+            self.assertEqual(found.value, "Solaris")
+            self.assertEqual(found.looked.get("read act"), act)
 
     def test_what_the_data_holds_said_whole(self):
         from research.v701 import querying as Q
@@ -483,6 +516,44 @@ class RequestedTests(unittest.TestCase):
         self.assertEqual(check["verify files"](changed), "")
         # the docstring and the test's words untouched: code alone
         self.assertIn('"""Every book."""', changed["shelf/books.py"])
+
+
+class CodeTalkTests(unittest.TestCase):
+
+    def test_a_doing_sure_together_is_code_talk(self):
+        from unittest import mock
+        from research.v698 import reading
+
+        def reads(act, acts):
+            return reading.Reading(act, acts[0][1], "none", 1.0, "none",
+                                   [], [], acts=acts)
+        cases = [("change", [("change", 0.53), ("goal", 0.46)], True),
+                 ("change", [("change", 0.5), ("none", 0.5)], False),
+                 ("ask", [("ask", 0.5), ("change", 0.45)], False),
+                 ("none", [("none", 0.9), ("change", 0.1)], False)]
+        for act, acts, taken in cases:
+            with mock.patch.object(reading, "read",
+                                   return_value=reads(act, acts)):
+                self.assertEqual(reading.code_talk("clean this up")
+                                 is not None, taken, acts)
+
+
+class TaughtValuesTests(unittest.TestCase):
+
+    def test_the_value_a_question_ends_on_said_another_way(self):
+        import random
+        from research.v698 import teach_code_ask as T
+        rng = random.Random(1)
+        line = "what input to f gives [3, 5, 4]?"
+        self.assertEqual(T._literals(line), [(22, 31)])
+        said = T._revalued(line, rng)
+        self.assertTrue(said.startswith("what input to f gives "))
+        self.assertTrue(said.endswith("?"))
+        # a value inside the words is no value the question ends on
+        for kept in ("which input to g returns [x for x in range(3)]?",
+                     "what does h give for 'a/1' when it is empty?",
+                     "find the input for g that makes 'a/1"):
+            self.assertEqual(T._revalued(kept, rng), kept)
 
 
 if __name__ == "__main__":

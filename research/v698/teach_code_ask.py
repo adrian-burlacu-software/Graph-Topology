@@ -440,6 +440,90 @@ def check(batch: int = 24) -> dict:
     return counts
 
 
+# -- the values said -----------------------------------------------------------------
+
+#: the values a question of a function's results says, swapped for values of
+#: every shape when its name is (long lists, True, a dict, a quoted string:
+#: CRUXEval's `what input to f gives False?` read as no question of inputs,
+#: 47 of 49 -- the 255 kept lines said only short values)
+VALUED = ("inputs", "outcome")
+LETTERS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJ0123456789 _-.,:;!?#@$%/"
+
+
+def _literals(line: str) -> list:
+    """(begin, end) of each Python value written in a line -- the longest
+    text from a value's first character that reads as one (a teach-time
+    reading; a reader taught on its result reads them at run time)."""
+    import ast
+    out, at = [], 0
+    while at < len(line):
+        first = line[at]
+        word = re.match(r"(True|False|None)\b", line[at:])
+        starts = first in "[({'\"" or first.isdigit() or word or (
+            first == "-" and line[at + 1:at + 2].isdigit())
+        if not starts or (at and (line[at - 1].isalnum() or
+                                  line[at - 1] in "_.")):
+            at += 1
+            continue
+        for end in range(len(line), at, -1):
+            try:
+                ast.literal_eval(line[at:end].strip())
+            except (ValueError, SyntaxError, TypeError, MemoryError,
+                    RecursionError):
+                continue
+            if line[at:end].strip():
+                out.append((at, at + len(line[at:end].rstrip())))
+                at = out[-1][1]
+                break
+        else:
+            at += 1
+    return out
+
+
+def _value(rng: random.Random, depth: int = 0):
+    """A Python value of any shape: numbers, True/False/None, strings of
+    any letters, lists, tuples, dicts -- short or long, nested once."""
+    kind = rng.choice(("int", "int", "float", "bool", "bool", "none", "str",
+                       "str", "str", "list", "list", "tuple", "dict")
+                      if not depth else ("int", "str", "str", "bool"))
+    if kind == "int":
+        return rng.choice((rng.randint(-9, 9), rng.randint(0, 99),
+                           rng.randint(-5000, 99999)))
+    if kind == "float":
+        return round(rng.uniform(-100, 100), rng.randint(1, 3))
+    if kind == "bool":
+        return rng.random() < 0.5
+    if kind == "none":
+        return None
+    if kind == "str":
+        size = rng.choice((0, 1, 3, 5, 8, 12, 20))
+        if rng.random() < 0.15:
+            return rng.choice(LETTERS) * size
+        return "".join(rng.choice(LETTERS) for _ in range(size))
+    size = rng.choice((0, 1, 2, 3, 5, 7, 10, 14))
+    if kind == "dict":
+        return {str(_value(rng, 1))[:6]: _value(rng, depth + 1)
+                for _ in range(min(size, 5))}
+    items = [_value(rng, depth + 1) for _ in range(size)] \
+        if rng.random() < 0.4 else \
+        [rng.randint(-9, 60) for _ in range(size)]
+    return tuple(items) if kind == "tuple" else items
+
+
+def _revalued(line: str, rng: random.Random) -> str:
+    """The line with the value it ends on written another way -- a value
+    said after a space, nothing but a stop after it (`... gives False?`;
+    not `range(3)]` or `iso-8859/1`)."""
+    found = _literals(line)
+    if not found:
+        return line
+    begin, end = found[-1]
+    if (begin and not line[begin - 1].isspace()) or \
+            line[end:].strip(" ?.!"):
+        return line
+    return line[:begin] + repr(_value(rng)) + line[end:]
+
+
 # -- the corpus ------------------------------------------------------------------------
 
 def corpus() -> dict:
@@ -451,6 +535,8 @@ def corpus() -> dict:
     rows = [json.loads(line) for line in CHECKED.open(encoding="utf-8")]
     kept = [one for one in rows if one["kept"]]
     rng = random.Random(SEED)
+    # (apart: every other line's sayings as they were)
+    values = random.Random(SEED + 1)
     found = symbols()
     names = {kind: [one["name"] for one in rows_]
              for kind, rows_ in found.items()}
@@ -470,6 +556,8 @@ def corpus() -> dict:
             for name in rng.sample(others, min(SWAPS, len(others))):
                 said = re.sub(rf"(?<![\w.]){re.escape(meta['name'])}(?!\w)",
                               lambda _, name=name: name, line)
+                if meta["aspect"] in VALUED:
+                    said = _revalued(said, values)
                 sayings.append((said, name))
         for said_text, name in sayings:
             said = K.words(said_text)

@@ -234,11 +234,16 @@ def answer(text: str, held) -> Found | None:
             found.looked["read as"] = "no question"
         return found
     if asked.act == "none" or asked.chance < FLOOR:
+        act = asked.act
         found = _unread(text, asked, held)
         if found is not None:
             # what the reader read as no question of data: another part's,
-            # where one reads it as its own (the page's data talk yields)
+            # where one reads it as its own (the page's data talk yields);
+            # and what the reader read most surely, below its floor (`max`
+            # 0.59 of `which book is the oldest?`, `none` of `what does
+            # oldest return when there are no books?`)
             found.looked["read as"] = "no question"
+            found.looked["read act"] = act
         return found
     return carry(asked, held)
 

@@ -1164,10 +1164,13 @@ def replies(session) -> list:
             # an answer whole of the records the question names (`which book
             # is the oldest?`: Solaris, the earliest year) is no guess,
             # however surely code talk reads the word `oldest`, a function's
-            # name, as its own
+            # name, as its own -- where the data reader read a question of
+            # data at all (`what does oldest return when there are no
+            # books?` it reads as none: the code's)
             whole = found.value is not None and found.looked.get("target") \
                 and not found.looked.get("ask which") and \
-                not found.looked.get("nothing")
+                not found.looked.get("nothing") and \
+                found.looked.get("read act") != "none"
             if not whole and (found.looked.get("ask which") or
                               found.looked.get("read as") == "no question"):
                 # a guess of the data (made by lookup, or asking which field

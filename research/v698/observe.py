@@ -20,7 +20,9 @@ Run apart (`python -I`, a time limit), on a copy -- never in the server.
 from __future__ import annotations
 
 import ast
+import difflib
 import json
+import random
 import re
 import subprocess
 import sys
@@ -181,11 +183,13 @@ def _written_call(said: str, entry: str) -> str | None:
 def literals(said: str) -> list:
     """The Python literals a question says outside its code, each whole --
     the longest piece from each place one may begin that Python reads as a
-    literal (`[[1, 2], []]`, `'a, b'`)."""
+    literal (`[[1, 2], []]`, `'a, b'`, `False` -- a truth asked was no
+    value, 47 of CRUXEval's 49 then answered by explaining)."""
     outside = re.sub(r"```.*?```", " ", said, flags=re.S)
     out, at = [], 0
     while at < len(outside):
-        if outside[at] not in "[{('\"-0123456789" or (
+        if (outside[at] not in "[{('\"-0123456789" and not re.match(
+                r"(True|False|None)\b", outside[at:])) or (
                 at and (outside[at - 1].isalnum() or outside[at - 1] == "_")):
             at += 1
             continue
@@ -213,10 +217,15 @@ TRIED = 8
 
 
 def found_input(source: str, entry: str, wanted, model=None) -> dict:
-    """An input that gives `wanted`: the code model proposes calls, each run
-    apart, the first giving it kept -- what is said is what was run, never
-    a guess (CRUXEval input prediction, 200 items: 135 found so against the
-    model alone's 93). {call, tried} or {tried} where none gives it."""
+    """An input that gives `wanted`, found by running: first the search
+    alone (`searched`, from inputs of the kinds its parameters are used as
+    and the pieces of what is wanted), then from the calls the code model
+    proposes -- what is said is what was run, never a guess (CRUXEval input
+    prediction: of the 134 its eight proposed calls missed, 86 found by the
+    search alone). {call, tried} or {tried} where none gives it."""
+    found = searched(source, entry, wanted, _seeds(source, entry, wanted))
+    if found.get("call"):
+        return found
     if model is None:
         from research.v705 import coder
         model = coder.big()
@@ -230,17 +239,186 @@ def found_input(source: str, entry: str, wanted, model=None) -> dict:
             "```", " "), entry)
         if call and call not in calls:
             calls.append(call)
-    if not calls:
+    again = searched(source, entry, wanted, calls)
+    return {**again, "tried": found["tried"] + again["tried"]}
+
+
+# -- an input searched for --------------------------------------------------------------
+
+#: calls run at once; rounds of growing the nearest; how many nearest are
+#: grown each round, and how many calls each argument of one grows
+BATCH, ROUNDS, NEAREST, EACH = 120, 4, 4, 40
+
+
+def _likeness(given, wanted) -> float:
+    """How near a result is to the one wanted: 2 when it is it, else how
+    alike they are written (a tenth more for the same type)."""
+    if type(given) is type(wanted) and given == wanted:
+        return 2.0
+    return difflib.SequenceMatcher(None, repr(given), repr(wanted)).ratio() \
+        + (0.1 if type(given) is type(wanted) else 0)
+
+
+def _arguments(call: str) -> list | None:
+    """A call's arguments as values, where each is one written out."""
+    try:
+        node = ast.parse(call, mode="eval").body
+    except SyntaxError:
+        return None
+    if not isinstance(node, ast.Call) or node.keywords:
+        return None
+    try:
+        return [ast.literal_eval(one) for one in node.args]
+    except (ValueError, SyntaxError, TypeError, MemoryError, RecursionError):
+        return None
+
+
+def _call(entry: str, args: list) -> str:
+    return f"{entry}({', '.join(repr(one) for one in args)})"
+
+
+def _pieces(wanted) -> list:
+    """Values a wanted result may be made from: itself, turned round, an end
+    off, its parts, its length; a number's neighbours."""
+    out = [wanted]
+    if isinstance(wanted, (str, list, tuple)):
+        out += [wanted[::-1], wanted[1:], wanted[:-1], len(wanted)]
+        out += list(wanted)[:12]
+        if isinstance(wanted, (list, tuple)):
+            out.append(list(wanted))
+            out += [str(one) for one in wanted[:6]]
+        else:
+            out += [list(wanted), wanted.strip(), wanted.lower(),
+                    wanted.upper(), wanted.swapcase(), wanted.split()]
+    elif isinstance(wanted, dict):
+        out += [list(wanted), list(wanted.values()), list(wanted.items())]
+        out += list(wanted)[:6] + list(wanted.values())[:6]
+    elif isinstance(wanted, bool):
+        out += [not wanted, 0, 1, ""]
+    elif isinstance(wanted, (int, float)):
+        out += [wanted + 1, wanted - 1, -wanted, wanted * 2, 0, 1]
+        if wanted:
+            out.append(wanted // 2)
+        out.append(str(wanted))
+    return out
+
+
+def _constants(source: str) -> list:
+    """The values the code itself writes: its strings and numbers (`find(
+    ",")` wants a comma in what it is given)."""
+    out = []
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Constant) and isinstance(
+                node.value, (str, int, float)) and not isinstance(
+                node.value, bool) and node.value not in out:
+            out.append(node.value)
+    return out[:20]
+
+
+def _as(value, seq):
+    if isinstance(value, str):
+        return "".join(str(one) for one in seq)
+    return tuple(seq) if isinstance(value, tuple) else seq
+
+
+def _near(value, wanted, rng, own=()) -> list:
+    """Values one small edit from a value: an element or letter dropped,
+    put in or changed (from the result wanted or the code's own values),
+    the whole turned round, doubled, halved or made as long as what is
+    wanted; a number's neighbours; a key of a dict left out."""
+    out = []
+    parts = _pieces(wanted) + list(own)
+    if isinstance(value, (str, list, tuple)):
+        seq = list(value)
+        out += [value[::-1], value + value, value[:len(value) // 2]]
+        if isinstance(wanted, (str, list, tuple)) and seq and \
+                len(wanted) != len(seq):
+            out.append(_as(value, (seq * len(wanted))[:len(wanted)]))
+        for at in range(len(seq) + 1):
+            if at < len(seq):
+                out.append(_as(value, seq[:at] + seq[at + 1:]))
+            fill = rng.choice((list(wanted) if isinstance(
+                wanted, (str, list, tuple)) and wanted else parts) +
+                list(own))
+            if isinstance(value, str):
+                fill = fill if isinstance(fill, str) else str(fill)[:1]
+            out.append(_as(value, seq[:at] + [fill] + seq[at:]))
+            if at < len(seq):
+                out.append(_as(value, seq[:at] + [fill] + seq[at + 1:]))
+    elif isinstance(value, bool):
+        out.append(not value)
+    elif isinstance(value, (int, float)):
+        out += [value + 1, value - 1, -value, value * 2,
+                value // 2 if isinstance(value, int) else value / 2]
+    elif isinstance(value, dict):
+        for key in list(value)[:6]:
+            out.append({k: v for k, v in value.items() if k != key})
+    out += [one for one in parts if type(one) is type(value)]
+    return out
+
+
+def _seeds(source: str, entry: str, wanted) -> list:
+    """Calls to begin from: inputs of the kinds its parameters are used as,
+    what is wanted given as the first argument or as every one."""
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return []
+    function = next((node for node in tree.body if isinstance(
+        node, ast.FunctionDef) and node.name == entry), None)
+    if function is None or not function.args.args:
+        return []
+    kinds = [kind or "str" for kind in _kinds(function)]
+    out = [_call(entry, [INPUTS[kind][at][0] for kind in kinds])
+           for at in (0, 1)]
+    rest = [INPUTS[kind][0][0] for kind in kinds[1:]]
+    out += [_call(entry, [one] + rest) for one in _pieces(wanted)[:8]]
+    out += [_call(entry, [one] * len(kinds)) for one in _pieces(wanted)[:4]]
+    return out
+
+
+def searched(source: str, entry: str, wanted, calls: list,
+             seed: int = 0) -> dict:
+    """An input that gives `wanted`, by running: the calls run, the nearest
+    misses grown by one small edit of an argument, the nearest of those
+    grown again (four rounds). {call, tried} or {tried}."""
+    rng = random.Random(seed)
+    try:
+        own = _constants(source)
+    except SyntaxError:
         return {"tried": 0}
-    seen = run(source, calls)
-    for one in seen.get("calls") or ():
-        try:
-            given = ast.literal_eval(one.get("value", ""))
-        except (ValueError, SyntaxError, TypeError):
-            continue
-        if given == wanted and type(given) is type(wanted):
-            return {"call": one["call"], "tried": len(calls)}
-    return {"tried": len(calls)}
+    seen, scored, tried, todo = set(), [], 0, list(calls)
+    for _ in range(ROUNDS + 1):
+        todo = [one for one in dict.fromkeys(todo) if one not in seen][
+            :BATCH * 3]
+        if not todo:
+            break
+        for at in range(0, len(todo), BATCH):
+            batch = todo[at:at + BATCH]
+            seen.update(batch)
+            tried += len(batch)
+            for one in run(source, batch).get("calls") or ():
+                try:
+                    given = ast.literal_eval(one.get("value", ""))
+                except (ValueError, SyntaxError, TypeError, MemoryError,
+                        RecursionError):
+                    continue
+                like = _likeness(given, wanted)
+                if like == 2.0:
+                    return {"call": one["call"], "tried": tried}
+                scored.append((like, one["call"]))
+        scored.sort(key=lambda one: -one[0])
+        todo = []
+        for _, call in scored[:NEAREST]:
+            args = _arguments(call) or []
+            made = []
+            for place, value in enumerate(args):
+                for other in _near(value, wanted, rng, own):
+                    made.append(_call(entry, args[:place] + [other] +
+                                      args[place + 1:]))
+            rng.shuffle(made)
+            todo += made[:EACH * max(1, len(args))]
+    return {"tried": tried}
 
 
 def _ordinal(at: int) -> str:
