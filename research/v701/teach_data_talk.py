@@ -55,10 +55,17 @@ MOST_SEEDS, EACH_FILE = 360, 3
 SWAPS = 3
 
 ACTS = ("none", "value", "count", "list", "sum", "mean", "max", "min",
-        "exists")
+        "exists",
+        # a question of the data asking what is not looked up here yet --
+        # grouped, sorted, the top few, nested, either-or (SParC's SQL says
+        # so: `research/v701/teach_data_sparc.py`): said so, not guessed
+        "beyond")
 OPS = ("none", "eq", "ne", "gt", "lt", "ge", "le", "contains")
 ROLES = ("O", "B-TARGET", "I-TARGET", "B-FIELD", "I-FIELD", "B-VALUE",
          "I-VALUE")
+#: whether a question asks of the records the last one answered with
+#: (`research/v701/teach_data_sparc.py`)
+OF = ("none", "last")
 STYLE = ("Vary the wording a lot: short and long, casual and formal, a few "
          "with small typos or no question mark. One per line, nothing else: "
          "no numbering, no quotes, no explanations.")

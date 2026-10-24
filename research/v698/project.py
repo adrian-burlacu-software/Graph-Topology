@@ -183,9 +183,14 @@ class Project:
         all, another collection's keys (`tasks[].owner` naming `users.csv`'s
         `name`) -- found in what they hold, in one file or across two.
         [{from: (file, collection, field), to: (file, collection, key),
-        share}]."""
+        share}]. Kept while its data is as it was (a question's links are
+        walked many times)."""
         from research.v701 import datamodel
-        return datamodel.relations(list(self.data().values()))
+        data = self.data()
+        if getattr(self, "_relations_of", None) is not data:
+            self._relations = datamodel.relations(list(data.values()))
+            self._relations_of = data
+        return self._relations
 
     # -- what it is -------------------------------------------------------------
     def outline(self) -> dict:

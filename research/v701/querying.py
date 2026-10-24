@@ -41,6 +41,10 @@ class Asked:
     known: list = field(default_factory=list)
     #: every act, most likely first, as the reader ranked them
     acts: list = field(default_factory=list)
+    #: whether it asks of the records the last question answered with
+    #: (`how many of these are there?`), and those records where it does
+    of: str = "none"
+    last: dict | None = None
 
 
 @dataclass
@@ -97,7 +101,11 @@ def read(text: str, names=()) -> Asked | None:
     lower = {str(one).lower() for one in names}
     tags = ["CODE" if word.lower() in lower or _one(word.lower()) in lower
             else "" for word in said]
-    found = encoder.read(said, tags=tags, heads=HEADS)
+    # whether it asks of the last answer's records: a reader taught it
+    # (SParC, `teach_data_sparc`)
+    of_last = "data_of" in encoder.LOADED.get().heads
+    found = encoder.read(said, tags=tags,
+                         heads=HEADS + (("data_of",) if of_last else ()))
     act, chance = found["data_act"][0]
     op = found["data_op"][0][0]
     spans: dict = {}
@@ -110,10 +118,11 @@ def read(text: str, names=()) -> Asked | None:
             spans[current][-1].append(word)
         else:
             current = None
-    return Asked(act, chance, op, {name: [" ".join(one) for one in found]
-                                   for name, found in spans.items()}, said,
+    return Asked(act, chance, op, {name: [" ".join(one) for one in found_]
+                                   for name, found_ in spans.items()}, said,
                  [word for word, tag in zip(said, tags) if tag],
-                 [name for name, _ in found["data_act"]])
+                 [name for name, _ in found["data_act"]],
+                 found["data_of"][0][0] if of_last else "none")
 
 
 # -- the words, looked up in the schema --------------------------------------------
@@ -216,14 +225,23 @@ def _field_of(record: dict, name: str):
     return value
 
 
-def answer(text: str, held) -> Found | None:
+def answer(text: str, held, last: dict | None = None) -> Found | None:
     """The question, answered from the project's data -- or None where it
-    is not one, or what it names is not there."""
+    is not one, or what it names is not there. `last`: the records the last
+    question answered with (`looked["kept"]`), asked of where the reader
+    reads it of them."""
     if held is None or not held.data():
         return None
     asked = read(text, known(held))
     if asked is None:
         return None
+    if asked.of == "last" and last:
+        asked.last = last
+    if asked.act == "beyond" and asked.chance >= FLOOR:
+        # asked what is not looked up here yet (grouped, sorted, the top
+        # few, either-or): said so, not guessed at (SParC: `sort by their
+        # age` answered with every age)
+        return Found("", asked=asked, looked={"beyond": True})
     if asked.act == "none" and asked.chance >= SURE_NONE:
         # read surely as no question of data (`show me the first line of
         # books.csv`, none 1.0): not made one by lookup -- it was made a
@@ -446,7 +464,8 @@ def _by_lookup(asked: Asked, held) -> Found | None:
         else:
             continue
         lookup = Asked(act, asked.chance, "eq" if "VALUE" in spans else
-                       "none", spans, asked.words, asked.known, asked.acts)
+                       "none", spans, asked.words, asked.known, asked.acts,
+                       asked.of, asked.last)
         found = carry(lookup, held)
         # found: the collection's file (a CSV's rows have no path)
         if found is not None and found.file:
@@ -537,15 +556,26 @@ def _resolved(held, asked: Asked) -> dict | None:
         asked_field = next((one for one in fields if _named(target, one)),
                            None)
         whole = _named(target, name) or target.lower() == base.lower()
-        if not (asked_field or whole) or (value and asked.op != "none"
-                                          and by is None):
+        if not (asked_field or whole):
             continue
+        through = None
+        if value and asked.op != "none" and by is None:
+            # the value held by another collection, linked to this one
+            # (`which teachers teach the math course?`: the course is math,
+            # its teachers through course_arrange)
+            through = _held_across(held, model, path, asked, value)
+            if through is None:
+                continue
         around = sum(_named(word, name) or _named(word, base.rsplit(
             ".", 1)[0]) or word.lower() == base.lower()
             for word in asked.words)
-        fit = (named_by, by is not None, bool(asked_field or whole), around)
+        # asked of the last answer's records: theirs, where it fits at all
+        mine = bool(asked.last) and asked.last["file"] == model.path and \
+            asked.last["collection"] == path
+        fit = (mine, named_by, by is not None, bool(asked_field or whole),
+               around)
         one = {"model": model, "collection": path, "field": asked_field,
-               "by": by, "name": name}
+               "by": by, "name": name, "through": through}
         if score is None or fit > score:
             best, score, ties = one, fit, [one]
         elif fit == score:
@@ -589,6 +619,115 @@ def _resolved(held, asked: Asked) -> dict | None:
         if len(named) == 1:
             path = named[0]
     return {"model": model, "place": path}
+
+
+#: how many links a question's records may be followed across
+LINKS = 2
+
+
+def _links(held, start: tuple, end: tuple) -> list | None:
+    """The fewest links from one collection to another (file, path), each
+    followed either way -- [(relation, forward)], [] where they are one, or
+    None where none joins them within `LINKS`."""
+    if start == end:
+        return []
+    found = held.relations()
+    seen, layer = {start}, [(start, [])]
+    for _ in range(LINKS):
+        nearer = []
+        for here, way in layer:
+            for link in found:
+                ends = (tuple(link["from"][:2]), tuple(link["to"][:2]))
+                for forward in (True, False):
+                    if ends[0 if forward else 1] != here:
+                        continue
+                    there = ends[1 if forward else 0]
+                    if there in seen:
+                        continue
+                    if there == end:
+                        return way + [(link, forward)]
+                    seen.add(there)
+                    nearer.append((there, way + [(link, forward)]))
+        layer = nearer
+    return None
+
+
+def _ways(held, start: tuple, end: tuple) -> list:
+    """Every way of the fewest links from one collection to another: one
+    link each way where several join them directly (a task's owner and its
+    watchers), else the one `_links` finds."""
+    direct = [[(link, forward)] for link in held.relations()
+              for forward in (True, False)
+              if (tuple(link["from"][:2]), tuple(link["to"][:2]))[
+                  0 if forward else 1] == start and
+              (tuple(link["from"][:2]), tuple(link["to"][:2]))[
+                  1 if forward else 0] == end]
+    if direct:
+        return direct
+    way = _links(held, start, end)
+    return [way] if way else []
+
+
+def _across(held, records: list, way: list) -> list:
+    """The records of the far end of the links that the given records name,
+    or are named by, link by link."""
+    models = held.data()
+    for link, forward in way:
+        (file, path, field_), (to_file, to_path, key) = \
+            link["from"], link["to"]
+        if not forward:
+            file, path, field_, to_file, to_path, key = \
+                to_file, to_path, key, file, path, field_
+        said = set()
+        for one in records:
+            held_ = _field_of(one, field_)
+            said.update(str(item).lower() for item in (
+                held_ if isinstance(held_, list) else [held_])
+                if item is not None)
+        theirs = []
+        for one in models[to_file].records()[to_path]:
+            held_ = _field_of(one, key)
+            if any(str(item).lower() in said for item in (
+                    held_ if isinstance(held_, list) else [held_])
+                   if item is not None):
+                theirs.append(one)
+        records = theirs
+    return records
+
+
+def _held_across(held, model, path: str, asked: Asked, value: str):
+    """Another collection holding the value a filter is held to, and the
+    links to this one -- {model, collection, by, way}, the nearest; None
+    where none is linked."""
+    best = None
+    for other, there, fields, _, _ in _groups(held):
+        if (other.path, there) == (model.path, path):
+            continue
+        field_ = (asked.spans.get("FIELD") or [""])[0]
+        by = next((one for one in fields if _named(field_, one)), None) \
+            if field_ else None
+        if by is None:
+            by = _field_by_value(other.records()[there], fields, asked.op,
+                                 _value(value))
+        if by is None:
+            continue
+        for way in _ways(held, (other.path, there), (model.path, path)):
+            # the fewest links, and of those the one whose field the
+            # message says (`the watchers of t1`, not its owner)
+            said = sum(any(_named(word, link["from"][2]) for word in
+                           asked.words) for link, _ in way)
+            fit = (-len(way), said)
+            if best is None or fit > best["fit"]:
+                best = {"model": other, "collection": there, "by": by,
+                        "way": way, "fit": fit}
+    return best
+
+
+def _said_way(way: list) -> str:
+    """The links followed, as said: `by course_arrange.csv's Teacher_ID`."""
+    return ", ".join(f"{link['from'][0] if forward else link['to'][0]}'s "
+                     f"{link['from'][2] if forward else link['to'][2]}"
+                     for link, forward in way)
 
 
 def _sorted_out(held, spans: dict) -> dict:
@@ -666,6 +805,10 @@ def carry(asked: Asked, held) -> Found | None:
         if len(having) == 1:
             target = having[0][3] or having[0][1] or field_
             asked.spans = {**asked.spans, "TARGET": [target]}
+    if not target and asked.last:
+        # of the last answer's records, naming none (`how many are there?`)
+        target = asked.last["name"]
+        asked.spans = {**asked.spans, "TARGET": [target]}
     if not target:
         return None
     asked.spans = _sorted_out(held, asked.spans)
@@ -675,8 +818,9 @@ def carry(asked: Asked, held) -> Found | None:
         if joined is not None:
             return joined
     if found is None or not found.get("also"):
-        return _carried(asked, found, target)
-    every = [_carried(asked, one, target) for one in [found] + found["also"]]
+        return _carried(asked, found, target, held)
+    every = [_carried(asked, one, target, held)
+             for one in [found] + found["also"]]
     first = every[0]
     first.said = " ".join(one.said for one in every)
     first.value = [one.value for one in every]
@@ -733,7 +877,8 @@ def _joined(held, asked: Asked, target: str) -> Found | None:
     return None
 
 
-def _carried(asked: Asked, found: dict | None, target: str) -> Found:
+def _carried(asked: Asked, found: dict | None, target: str,
+             held=None) -> Found:
     looked = {"target": target}
     if found is None:
         # nothing of the data is so called: an answer of no data, which
@@ -756,8 +901,44 @@ def _carried(asked: Asked, found: dict | None, target: str) -> Found:
         return Found(f"{path} in {where} is {_said_value(value)}.", value,
                      where, path, asked, looked)
     collection, group = found["collection"], found["name"]
-    records = model.records()[collection]
+    every = model.records()[collection]
+    records = every
     looked["collection"] = collection or where
+    last = asked.last
+    if last and last["file"] == where and last["collection"] == collection \
+            and last["at"] is not None:
+        # of the records the last question answered with (`which of these
+        # ...`, `how many are there?`): those alone
+        records = [every[at] for at in last["at"] if at < len(every)]
+        looked["of the last"] = len(records)
+    elif last and last["at"] is not None and held is not None and \
+            last["file"] in held.data():
+        # of another collection's: the records of this one they name, or
+        # are named by (`what are the names of the countries they belong
+        # to?` after the car makers)
+        way = _links(held, (last["file"], last["collection"]),
+                     (where, collection))
+        if way:
+            theirs = held.data()[last["file"]].records()[
+                last["collection"]]
+            records = _across(held, [theirs[at] for at in last["at"]
+                                           if at < len(theirs)], way)
+            looked["of the last"] = len(records)
+            looked["through"] = _said_way(way)
+    through = found.get("through")
+    if through is not None:
+        # the filter on the collection that holds its value, its records
+        # followed across the links to these
+        values_ = asked.spans.get("VALUE") or []
+        wanted = _value(values_[0])
+        theirs = [one for one in through["model"].records()[
+            through["collection"]] if _holds(_field_of(one, through["by"]),
+                                             asked.op, wanted)]
+        mapped = {id(one) for one in _across(held, theirs,
+                                             through["way"])}
+        records = [one for one in records if id(one) in mapped]
+        looked["filter"] = [through["by"], asked.op, wanted]
+        looked["through"] = _said_way(through["way"])
     values = asked.spans.get("VALUE") or []
     if found["by"] and values and asked.op != "none":
         wanted = _value(values[0])
@@ -791,6 +972,7 @@ def _carried(asked: Asked, found: dict | None, target: str) -> Found:
     if len(records) == 1:
         # the one record answered of: what a follow-up's `it` is
         looked["record"] = records[0]
+    looked["kept"] = _kept(model, collection, group, every, records)
     if asked.act == "count" and found["field"] and records and all(
             isinstance(_field_of(one, found["field"]), (int, float)) and
             not isinstance(_field_of(one, found["field"]), bool)
@@ -836,7 +1018,8 @@ def _carried(asked: Asked, found: dict | None, target: str) -> Found:
         if way is not None:
             looked["ordered"] = way
             asked = Asked(way, asked.chance, asked.op, asked.spans,
-                          asked.words, asked.known, asked.acts)
+                          asked.words, asked.known, asked.acts, asked.of,
+                          asked.last)
     if asked.act in ("max", "min") and (not found["field"] or looked.get(
             "ordered")) and records:
         return _extreme(asked, found, model, records, looked)
@@ -871,6 +1054,17 @@ def _carried(asked: Asked, found: dict | None, target: str) -> Found:
     return Found(f"{_said_list(picked)}: the {name} of the {group} in "
                  f"{where}" + _because(looked) + ".", picked, where,
                  collection, asked, looked)
+
+
+def _kept(model, collection: str, group: str, every: list,
+          records: list) -> dict:
+    """The records an answer ended with, as a follow-up asks of them: the
+    file, the collection, its name, and where each is among all of them
+    (None where they are all)."""
+    ids = {id(one) for one in records}
+    return {"file": model.path, "collection": collection, "name": group,
+            "at": None if len(records) == len(every) else
+            [at for at, one in enumerate(every) if id(one) in ids]}
 
 
 def _extreme(asked: Asked, found: dict, model, records: list,
@@ -912,7 +1106,7 @@ def _extreme(asked: Asked, found: dict, model, records: list,
             looked["nearest"] = f"{act} {field_}"
     if act != asked.act:
         asked = Asked(act, asked.chance, asked.op, asked.spans, asked.words,
-                      asked.known, asked.acts)
+                      asked.known, asked.acts, asked.of, asked.last)
     if field_ is None:
         # which field is asked, asked back: what another part reads as its
         # own is that part's (the page's data talk yields)
@@ -936,6 +1130,9 @@ def _extreme(asked: Asked, found: dict, model, records: list,
     looked.update({"field": field_, "extreme": asked.act, "key": key})
     if len(rows) == 1:
         looked["record"] = rows[0]
+    # what a follow-up asks of (`what is its id?`): the records ordered out
+    looked["kept"] = _kept(model, collection, group,
+                           model.records()[collection], rows)
     word = ({"max": "latest", "min": "earliest"} if _kinds(
         [field_], records)[field_] == "time" else {
         "max": "largest", "min": "smallest"})[asked.act]
@@ -1072,12 +1269,18 @@ def _shown_name(path: str, model) -> str:
 
 def _because(looked: dict) -> str:
     found = looked.get("filter")
+    # asked of the last answer's records: said so
+    of_last = f" (of the {looked['of the last']} just answered)" \
+        if "of the last" in looked else ""
+    if looked.get("through"):
+        # the links followed, said (`by has_pet.csv's StuID`)
+        of_last += f" (by {looked['through']})"
     if not found:
-        return ""
+        return of_last
     said = {"eq": "is", "ne": "is not", "gt": "is more than",
             "lt": "is less than", "ge": "is at least", "le": "is at most",
             "contains": "has", "lacks": "does not have"}[found[1]]
-    return f" whose {found[0]} {said} {_said_value(found[2])}"
+    return f" whose {found[0]} {said} {_said_value(found[2])}" + of_last
 
 
 def _said_value(value) -> str:

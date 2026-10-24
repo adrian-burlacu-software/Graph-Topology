@@ -100,6 +100,22 @@ class Model:
             f"{collection}.{one}" if collection else one].types]
         return words or out
 
+    def unique(self, collection: str) -> list:
+        """Every field of a collection each record has, each different --
+        what another collection may name its records by (`Stadium_ID`,
+        where `keys` prefers the stadium's name)."""
+        found = self.collections.get(collection) or {}
+        size = found.get("count", 0)
+        out = []
+        for name in found.get("fields", ()):
+            place = self.places.get(f"{collection}.{name}" if collection
+                                    else name)
+            if place and size >= LEAST_KEYED and place.count == size and \
+                    len(place.distinct) == size and set(place.types) <= {
+                        "string", "integer"}:
+                out.append(name)
+        return out
+
     def json(self) -> dict:
         if self.error:
             return {"path": self.path, "format": self.format,
@@ -150,46 +166,122 @@ def _shown(value) -> str:
 LINKED, LEAST_LINKED = 0.8, 3
 
 
+def _name_words(name: str) -> set:
+    """A field's or a collection's name as its words, one of each
+    (`CountryCode` -> country, code; `car_makers` -> car, maker)."""
+    import re
+    spaced = re.sub(r"([a-z])([A-Z])", r"\1 \2", str(name))
+    out = set()
+    for word in re.split(r"[\W_]+", spaced.lower()):
+        if word:
+            out.add(word[:-1] if word.endswith("s") and len(word) > 3
+                    else word)
+    return out
+
+
+def _alike(one: str, other: str) -> bool:
+    """A word and another the same, or one the other's start (`cont`,
+    `continent`)."""
+    return one == other or (min(len(one), len(other)) >= 3 and (
+        one.startswith(other) or other.startswith(one)))
+
+
+def _within(words: set, others: set) -> bool:
+    return all(any(_alike(one, other) for other in others) for one in words)
+
+
+def _named_alike(field: str, key: str, collection: str) -> int:
+    """How far a field's name says what it names: how many of its words,
+    past `id`, are the key's or the collection's -- where the key's own
+    words are all its (`owner_id` -- owners' `owner_id`; `Country` --
+    countries' `CountryId`; `lost_in_battle` -- battles' `id`; not
+    `orchestra_id` -- orchestras' `conductor_id`). 0 where it does not."""
+    said = _name_words(field) - {"id"}
+    own = _name_words(key) - {"id"}
+    if not said or not _within(own, said):
+        return 0
+    return sum(any(_alike(one, other) for other in own | _name_words(
+        collection)) for one in said)
+
+
+def _own_key(field: str, collection: str) -> bool:
+    """A field named for its own collection (`pets.PetID`): what names its
+    records, not another's."""
+    said = _name_words(field) - {"id"}
+    return bool(said) and _within(said, _name_words(collection)) and \
+        _within(_name_words(collection), said)
+
+
 def relations(models: list) -> list:
     """Fields whose values are, nearly all, the keys of another collection
-    -- of the same file or another: what one record names of another."""
+    -- of the same file or another: what one record names of another. Any
+    field every record has, each different, is a key; numbers name records
+    only where the names say so too (in car_1 every small number was some
+    table's id: `Cylinders` named `cars_data`, `IndepYear` the cities)."""
     keys = []
     for model in models:
         if model.error:
             continue
         for path in model.collections:
             records = model.records()[path]
-            # a collection's first key is what names its records: a field
-            # that only happens to differ (three tasks, three owners) is
-            # not what another names them by
-            for key in model.keys(path)[:1]:
+            named = path or model.path.rsplit("/", 1)[-1].rsplit(".", 1)[0]
+            # its first key (a field that only happens to differ -- three
+            # tasks, three owners -- is not what another names them by),
+            # and its numbers each different (`Stadium_ID`, where the first
+            # key is the stadium's name): those linked to by name alone
+            first = model.keys(path)[:1]
+            for key in model.unique(path):
+                if key not in first and not all(
+                        isinstance(one.get(key), int) for one in records
+                        if isinstance(one, dict)):
+                    continue
                 found = {str(one.get(key)).lower() for one in records
                          if isinstance(one, dict) and one.get(key) is not None}
-                keys.append((model.path, path, key, found))
+                keys.append((model.path, path, key, found, named))
     out = []
     for model in models:
         if model.error:
             continue
         for path, collection in model.collections.items():
             records = model.records()[path]
+            named_here = path or model.path.rsplit("/", 1)[-1].rsplit(".",
+                                                                      1)[0]
+            unique = set(model.unique(path))
             for name in collection["fields"]:
-                values = []
+                if name in unique and _own_key(name, named_here):
+                    continue
+                values, digits = [], 0
                 for one in records:
                     held = one.get(name) if isinstance(one, dict) else None
-                    if isinstance(held, list):
-                        values += [str(item).lower() for item in held]
-                    elif held is not None and not isinstance(held, dict):
-                        values.append(str(held).lower())
+                    items = held if isinstance(held, list) else [held]
+                    for item in items:
+                        if item is None or isinstance(item, dict):
+                            continue
+                        values.append(str(item).lower())
+                        # a number, or one written as text (`'130'`)
+                        digits += not isinstance(item, bool) and \
+                            str(item).lstrip("-").isdigit()
                 if len(values) < LEAST_LINKED:
                     continue
-                for file, other, key, found in keys:
-                    if (file, other, key) == (model.path, path, name):
+                numbers = digits >= LINKED * len(values)
+                found_ = []
+                for file, other, key, found, named in keys:
+                    if (file, other) == (model.path, path):
+                        continue
+                    alike = _named_alike(name, key, named)
+                    if numbers and not alike:
                         continue
                     share = sum(one in found for one in values) / len(values)
                     if share >= LINKED:
-                        out.append({"from": [model.path, path, name],
-                                    "to": [file, other, key],
-                                    "share": round(share, 3)})
+                        found_.append((alike, {"from": [model.path, path,
+                                                        name],
+                                               "to": [file, other, key],
+                                               "share": round(share, 3)}))
+                # numbers: only what the name says most of (`student_
+                # enrolment_id` the enrolments', not the students')
+                best = max((alike for alike, _ in found_), default=0)
+                out += [one for alike, one in found_
+                        if not numbers or alike == best]
     return out
 
 

@@ -279,6 +279,89 @@ class DataAskedTests(unittest.TestCase):
             self.assertEqual(found.value, "Solaris")
             self.assertEqual(found.looked.get("read act"), act)
 
+    def test_asked_of_the_last_answers_records(self):
+        from unittest import mock
+        from research.v701 import querying as Q
+        project = self.library()
+        first = Q.carry(self.asked("list", "eq", {
+            "TARGET": ["books"], "VALUE": ["octavia e . butler"]},
+            "which books are by octavia e . butler ?".split()), project)
+        kept = first.looked["kept"]
+        self.assertEqual((kept["file"], kept["at"]), ("data/books.csv",
+                                                      [1, 2]))
+        # `how many are there?`: no target said, of the last -- those two
+        asked = Q.Asked("count", 0.9, "none", {}, "how many are there".split(),
+                        of="last")
+        with mock.patch.object(Q, "read", return_value=asked):
+            found = Q.answer("how many are there?", project, kept)
+        self.assertEqual(found.value, 2)
+        self.assertIn("of the 2 just answered", found.said)
+        # `which of them came out after 1979?`: a filter of those alone
+        asked = Q.Asked("list", 0.9, "gt", {"TARGET": ["title"],
+                                             "FIELD": ["year"],
+                                             "VALUE": ["1979"]},
+                        "which of them came out after 1979".split(),
+                        of="last")
+        with mock.patch.object(Q, "read", return_value=asked):
+            found = Q.answer("which of them came out after 1979?", project,
+                             kept)
+        self.assertEqual(found.value, ["Wild Seed"])
+        # read as not of the last: every record
+        asked = Q.Asked("count", 0.9, "none", {"TARGET": ["books"]},
+                        "how many books are there".split())
+        with mock.patch.object(Q, "read", return_value=asked):
+            self.assertEqual(Q.answer("how many books are there?", project,
+                                      kept).value, 3)
+
+    def test_asked_beyond_what_is_looked_up(self):
+        from unittest import mock
+        from research.v701 import querying as Q
+        project = self.library()
+        asked = Q.Asked("beyond", 0.9, "none", {},
+                        "sort them by year".split())
+        with mock.patch.object(Q, "read", return_value=asked):
+            found = Q.answer("sort them by year", project)
+        self.assertTrue(found.looked.get("beyond"))
+        # read too unsurely: not taken as beyond
+        asked = Q.Asked("beyond", 0.4, "none", {}, "sort them by year".split())
+        with mock.patch.object(Q, "read", return_value=asked):
+            found = Q.answer("sort them by year", project)
+        self.assertFalse(found is not None and found.looked.get("beyond"))
+
+    def test_records_followed_across_links(self):
+        from unittest import mock
+        from research.v698.project import Project
+        from research.v701 import querying as Q
+        project = Project("pets")
+        project.put({
+            "data/student.csv": "StuID,name,age\n1,Ada,19\n2,Bo,20\n"
+                                "3,Cy,21\n4,Di,22\n",
+            "data/has_pet.csv": "StuID,PetID\n1,10\n2,11\n3,12\n",
+            "data/pets.csv": "PetID,kind,weight\n10,dog,9.5\n11,cat,4.0\n"
+                             "12,dog,12.0\n"})
+        links = {(one["from"][0], one["from"][2], one["to"][0], one["to"][2])
+                 for one in project.relations()}
+        self.assertEqual(links, {
+            ("data/has_pet.csv", "StuID", "data/student.csv", "StuID"),
+            ("data/has_pet.csv", "PetID", "data/pets.csv", "PetID")})
+        # `which students have a dog?`: the value held by pets, the
+        # students' names through has_pet
+        asked = Q.Asked("list", 0.9, "eq", {"TARGET": ["students"],
+                                             "VALUE": ["dog"]},
+                        "which students have a dog".split())
+        with mock.patch.object(Q, "read", return_value=asked):
+            found = Q.answer("which students have a dog?", project)
+        self.assertEqual(found.value, ["Ada", "Cy"])
+        self.assertIn("by", found.said)
+        # `how much do their pets weigh?`: of the last, in another
+        # collection -- those students' pets
+        asked = Q.Asked("list", 0.9, "none", {"TARGET": ["weight"]},
+                        "how much do their pets weigh".split(), of="last")
+        with mock.patch.object(Q, "read", return_value=asked):
+            found = Q.answer("how much do their pets weigh?", project,
+                             found.looked["kept"])
+        self.assertEqual(found.value, [9.5, 12.0])
+
     def test_what_the_data_holds_said_whole(self):
         from research.v701 import querying as Q
         project = self.library()

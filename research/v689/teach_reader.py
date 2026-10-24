@@ -569,6 +569,7 @@ HEAD_KINDS = {
     "code_act": "sentence", "code_aspect": "sentence",
     "code_subject": "sentence", "code_role": "word",
     "data_act": "sentence", "data_op": "sentence", "data_role": "word",
+    "data_of": "sentence",
     "shell_act": "sentence", "shell_role": "word",
     "plan_kind": "sentence", "plan_part": "word"}
 
@@ -594,8 +595,11 @@ FIELDS = {
     "code": {"code_act": "act", "code_aspect": "aspect",
              "code_subject": "subject", "code_role": "roles"},
     # What a question about data asks, the filter's comparison, and which
-    # words name the fields and the value (`research/v701`).
-    "data": {"data_act": "act", "data_op": "op", "data_role": "roles"},
+    # words name the fields and the value (`research/v701`) -- and whether
+    # it asks of the records the last question answered with (SParC's,
+    # `teach_data_sparc`; a record without it says nothing of it).
+    "data": {"data_act": "act", "data_op": "op", "data_role": "roles",
+             "data_of": "of"},
     # What a message asks of the computer -- a command to run, a task a
     # command does, yes or no to one shown -- and the command's words
     # (`research/v702`).
@@ -2915,9 +2919,12 @@ def labels(rows=()) -> dict:
         # Questions about data (`research/v701/teach_data_talk.py`).
         from research.v701.teach_data_talk import (ACTS as DATA_ACTS,
                                                    OPS as DATA_OPS,
-                                                   ROLES as DATA_ROLES)
+                                                   ROLES as DATA_ROLES,
+                                                   OF as DATA_OF)
         said.update(data_act=list(DATA_ACTS), data_op=list(DATA_OPS),
                     data_role=list(DATA_ROLES))
+        if any("of" in row for row in rows if task_of(row) == "data"):
+            said.update(data_of=list(DATA_OF))
     if any(task_of(row) == "shell" for row in rows):
         # What is asked of the computer (`research/v702/teach_shell.py`).
         from research.v702.teach_shell import (ACTS as SHELL_ACTS,
@@ -2990,6 +2997,10 @@ def _batch(tokenizer, chunk: list[dict], spec: dict, index: dict,
     for row, one in enumerate(chunk):
         firsts, end = positions(encoded, row)
         for name, field in FIELDS[task_of(one)].items():
+            # a head no record of the reader's says (`data_of` before
+            # SParC), or this record does not: nothing taught of it
+            if name not in heads or field not in one:
+                continue
             kind = heads[name]["kind"]
             if kind == "sentence":
                 if name == "who" and one["slots"] == NONE:

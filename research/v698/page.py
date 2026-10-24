@@ -62,6 +62,10 @@ GOALS: dict = {}
 #: the one record a data answer was of, by conversation: (file, record,
 #: turn) -- what a follow-up's `it`, `their` is
 RECORDS: dict = {}
+#: the records a data answer ended with, by conversation: (kept, turn) --
+#: what a follow-up's `these`, `how many are there?` asks of
+#: (`querying._kept`)
+KEPT: dict = {}
 
 
 def _key(session):
@@ -1126,7 +1130,10 @@ def replies(session) -> list:
                 found_for.clear()
                 key = _key(session)
                 held = Pj.project(key)
-                found = querying.answer(text, held)
+                kept, after = KEPT.get(key, (None, -1))
+                found = querying.answer(
+                    text, held, kept if after == v697_page._turn(memory) - 1
+                    else None)
                 # a question naming nothing of its own, just after the data
                 # answered of one record (`which book is the oldest?` ...
                 # `who wrote it?`): asked of that record
@@ -1209,6 +1216,17 @@ def replies(session) -> list:
             found = data_found(memory)
             if found is None:
                 return None
+            if found.looked.get("beyond"):
+                # a question of the data asking what is not looked up yet:
+                # said so, unsure
+                path = of_the_data(memory) or "the project's data"
+                reply = asking._reply("data", typed(memory), (
+                    f"I can't answer that from {path} yet: it asks to "
+                    f"group, sort or combine the records in a way I don't "
+                    f"look up."), {"query": found.json()})
+                reply["code"]["answer"]["status"] = "unsure"
+                memory["turn"].answer = reply
+                return ANSWERED
             reply = asking._reply("data", typed(memory), found.said,
                                   {"query": found.json()})
             reply["code"]["data"] = found.json()
@@ -1224,6 +1242,9 @@ def replies(session) -> list:
                 record = found.looked.get("record")
                 RECORDS[key] = (found.file, record, v697_page._turn(memory)) \
                     if isinstance(record, dict) else (None, None, -1)
+                KEPT[key] = (found.looked.get("kept"),
+                             v697_page._turn(memory)) \
+                    if found.looked.get("kept") else (None, -1)
             return ANSWERED
 
         out.append(Operator(
