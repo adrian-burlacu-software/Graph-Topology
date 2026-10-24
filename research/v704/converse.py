@@ -417,7 +417,7 @@ def main(argv=None) -> int:
     parser.add_argument("--area", default=None)
     parser.add_argument("--suite", default="suite",
                         choices=("suite", "heldout", "canitedit",
-                                 "cruxeval-o", "cruxeval-i", "wtq"),
+                                 "cruxeval-o", "cruxeval-i", "wtq", "sparc"),
                         help="heldout: fixtures/garden, kept apart from "
                              "the work it measures; canitedit: CanItEdit's "
                              "changes, each its own project (canitedit.py)")
@@ -444,6 +444,9 @@ def main(argv=None) -> int:
     elif options.suite == "wtq":
         from research.v704 import wtq
         SUITE = wtq.suite()
+    elif options.suite == "sparc":
+        from research.v704 import sparc
+        SUITE = sparc.suite()
     chosen = [(at, one) for at, one in enumerate(SUITE)
               if (options.area is None or one.area == options.area) and
               (not options.core or one.area in CORE) and

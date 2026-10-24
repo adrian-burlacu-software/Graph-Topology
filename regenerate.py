@@ -1196,6 +1196,16 @@ def steps() -> list[Step]:
              _lines_check(DATA / "wtq" / "test.jsonl", 18000,
                           "18486 when made"),
              cost="a few minutes"),
+        Step("sparc", "SParC: sequences of questions of a database, each "
+                      "leaning on the last; 200 of dev said, each "
+                      "database's tables a project of CSV files",
+             lambda: (_run("research.v704.sparc", "fetch"),
+                      _run("research.v704.sparc", "projects")),
+             lambda: (f"{len(list((DATA / 'sparc' / 'projects').iterdir()))}"
+                      " projects") if (DATA / "sparc" / "projects").exists()
+             and len(list((DATA / "sparc" / "projects").iterdir())) >= 20
+             else None,
+             cost="a few minutes"),
         Step("humanevalfix-py", "the same bugs in Python (v699 rung 4)",
              lambda: _run("research.v696.bugs", "fetch", "python"),
              _lines_check(DATA / "humanevalfix" / "python.jsonl", 160,
