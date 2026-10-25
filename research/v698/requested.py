@@ -537,10 +537,17 @@ def stated(statement: str, names) -> list:
 def _defines(text: str, asked: dict) -> str:
     """'' where code defines every name asked, each function with the
     parameters asked; else what it lacks."""
+    lacks = _lacking(text, asked)
+    return lacks[0] if lacks else ""
+
+
+def _lacking(text: str, asked: dict) -> list:
+    """What of the names asked code lacks, each said: [] where it defines
+    them all, each function with the parameters asked."""
     try:
         tree = ast.parse(text)
     except SyntaxError:
-        return "it does not parse"
+        return ["it does not parse"]
     defined: dict = {}
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -564,13 +571,14 @@ def _defines(text: str, asked: dict) -> str:
                         defined.setdefault(one.attr, set())
                     elif isinstance(one, ast.Name):
                         defined.setdefault(one.id, set())
+    out = []
     for name, count in asked.items():
         if name not in defined:
-            return f"it has no {name}"
-        if count is not None and defined[name] and not any(
+            out.append(f"it has no {name}")
+        elif count is not None and defined[name] and not any(
                 low <= count <= high for low, high in defined[name]):
-            return f"its {name} does not take {count}"
-    return ""
+            out.append(f"its {name} does not take {count}")
+    return out
 
 
 def checker(statement: str, held, path: str, keeps: bool = False) -> dict:
@@ -646,11 +654,9 @@ def checker(statement: str, held, path: str, keeps: bool = False) -> dict:
         place = Path(tempfile.mkdtemp(prefix="requested-"))
         try:
             _copy(held, place, {path: changed})
-            # what the request writes out the code will have, it has --
-            # else it is no change asked, as one breaking the project's
-            # own tests is none
-            own_ok = not _defines(changed, asked) and \
-                all(_test_file(place, one) for one in own) and \
+            # (what the request writes out the code will have: `lacks`,
+            # weighed against the other changes)
+            own_ok = all(_test_file(place, one) for one in own) and \
                 all(_runs(place, code, _module(path))[0] for code in said)
             # (tuples: grouped by, and said as they are)
             passed = tuple(at for at, code in enumerate(kept)
@@ -659,6 +665,13 @@ def checker(statement: str, held, path: str, keeps: bool = False) -> dict:
         finally:
             shutil.rmtree(place, ignore_errors=True)
         return own_ok, passed, gives
+
+    def lacks(changed: str) -> list:
+        """What of what the request writes out the code will have
+        (`interface`) a change lacks: no change asked where another change
+        has it -- a name no change has was a word of the request ("raise an
+        `exception`"), not code asked."""
+        return _lacking(changed, asked)
 
     def verify_files(changes: dict, least: int | None = None) -> str:
         """'' where the project, these files so changed, holds: its own
@@ -685,7 +698,7 @@ def checker(statement: str, held, path: str, keeps: bool = False) -> dict:
                 "need": need, "calls": [], "original": (),
                 "why": "no test tells the project from the change"}
     return {"verify": verify if kept else None,
-            "verify files": verify_files, "score": score,
+            "verify files": verify_files, "score": score, "lacks": lacks,
             "tests": written, "kept": kept, "left": left, "own": own,
             "need": need, "calls": calls, "original": original,
             "interface": asked, "stated": len(told), "said": said,

@@ -497,6 +497,7 @@ def _act(read, text: str, session, memory) -> dict | None:
                         # (one round beside the code model's: three rounds
                         # took 104 s of #38's 255, near the test's 300)
                         context = {"score": check["score"],
+                                   "lacks": check.get("lacks"),
                                    "rounds": 1 if more else 3,
                                    "tests": len(check["kept"]),
                                    "stated": check.get("stated", 0),
@@ -768,7 +769,19 @@ def replies(session) -> list:
         return v697_page._typed(memory)
 
     def pastes(memory) -> bool:
-        return asking.pasted(typed(memory)) is not None
+        text = typed(memory)
+        if asking.pasted(text) is None:
+            return False
+        # code in a request to change or make what the project has, by name
+        # (an exercise's instructions and examples, then `modify the
+        # supplied files: accumulate.py`): what the request is of, not code
+        # given to be read
+        key = _key(session)
+        if Pj.project(key) is None or not reading.taught():
+            return True
+        read = reading.code_talk(text, known(key))
+        return read is None or read.act not in ("change", "make") or \
+            read.subject not in reading.NAMED
 
     def explain(memory):
         text = typed(memory)

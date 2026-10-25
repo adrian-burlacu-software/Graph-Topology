@@ -528,6 +528,19 @@ class RequestedTests(unittest.TestCase):
         self.assertIn("count_by does not take 2", requested._defines(
             right.replace("author, year=None", "author"), asked))
 
+    def test_a_name_no_change_has_was_a_word(self):
+        from research.v700.fixing import _agreed_by_tests
+        # every change lacks `exception` (Exercism: "raise an `exception`"):
+        # a word of the request, refusing none; one lacking `shelved` that
+        # another change has is no change asked
+        has = {"own ok": True, "passes": (0,), "gives": ("1",), "by": {1, 2},
+               "lacks": ["it has no exception"]}
+        lacks = {"own ok": True, "passes": (0,), "gives": ("2",),
+                 "by": {3, 4, 5},
+                 "lacks": ["it has no exception", "it has no shelved"]}
+        self.assertEqual(_agreed_by_tests([has, lacks], 1), [has])
+        self.assertEqual(lacks["lacks what"], ["it has no shelved"])
+
     def test_the_examples_a_request_says_are_its_true_tests(self):
         from research.v698 import requested
         from research.v700.fixing import _agreed_by_tests
@@ -653,6 +666,22 @@ class DataWrittenTests(unittest.TestCase):
 
 
 class CodeTalkTests(unittest.TestCase):
+
+    def test_a_long_request_is_read_by_the_part_that_asks(self):
+        from research.v698 import reading
+        if not reading.taught():
+            self.skipTest("no reader taught code talk")
+        # past what the encoder reads: an exercise's instructions, its
+        # example, then what to do of which file, last
+        text = ("# Instructions\n\n" + "Given a list of numbers, each one "
+                "is squared and the squares are kept in the order they came"
+                " in, so that the list given back is as long. " * 4 +
+                "\n\n```text\n1, 2, 3 -> 1, 4, 9\n```\n\nUse the above "
+                "instructions to modify the supplied files: squares.py")
+        read = reading.read(text, {"squares.py", "squares"})
+        self.assertEqual(read.act, "change")
+        self.assertIn(read.subject, reading.NAMED)
+        self.assertIn("squares.py", read.spans.get("SUBJ", []))
 
     def test_a_doing_sure_together_is_code_talk(self):
         from unittest import mock

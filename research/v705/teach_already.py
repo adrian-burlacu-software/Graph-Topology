@@ -471,8 +471,10 @@ def chances(part: str, statement: str) -> dict:
         return {}
     views = [shown(function, source, one, said[one]) for one in names] + [
         none_shown(function, source)]
+    # (a statement longer than all it reads -- an exercise's instructions
+    # -- cut too, as the views are)
     found = tokenizer([statement] * len(views), views,
-                      truncation="only_second", max_length=LONGEST,
+                      truncation="longest_first", max_length=LONGEST,
                       padding=True, return_tensors="pt").to(device)
     with torch.no_grad():
         logits = model(**found).logits[:, 0].float()

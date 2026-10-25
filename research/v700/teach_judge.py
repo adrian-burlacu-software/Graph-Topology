@@ -188,7 +188,9 @@ class Judge:
             chunk = changes[at:at + 16]
             encoded = self.tokenizer(
                 [" ".join(statement.split())] * len(chunk), chunk,
-                truncation="only_second", max_length=LONGEST,
+                # (a statement longer than all it reads -- an exercise's
+                # instructions -- cut too, as the code is)
+                truncation="longest_first", max_length=LONGEST,
                 padding=True, return_tensors="pt").to("cuda")
             with torch.no_grad(), torch.autocast("cuda",
                                                  dtype=torch.bfloat16):

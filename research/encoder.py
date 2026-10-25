@@ -278,6 +278,15 @@ def read(words: list[str], tags=None, deps=None, heads=None) -> dict:
     return found
 
 
+def whole(words: list[str]) -> bool:
+    """Whether the encoder reads all of a sentence: it reads `LONGEST` word
+    pieces, and what is past them is never read."""
+    encoded = LOADED.get().tokenizer([str(one) for one in words],
+                                     is_split_into_words=True,
+                                     verbose=False)
+    return len(encoded["input_ids"]) <= LONGEST
+
+
 def order(pointer, kept: list[int]) -> list[int]:
     """The words kept, in the order the pointer says them: from the start,
     each time the likeliest word not said yet."""

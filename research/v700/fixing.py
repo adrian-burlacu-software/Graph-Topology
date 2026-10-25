@@ -429,6 +429,32 @@ def _kept_what_it_gives(rows: list, original=()) -> list:
             tuple(row.get("gives") or ()) == original]
 
 
+def _scored(row: dict, context: dict) -> None:
+    """A change run on the tests of what was asked (v698 `requested`):
+    whether it keeps the project's own tests, the tests it passes, what it
+    gives -- and what of the code the request writes out it lacks."""
+    row["own ok"], row["passes"], row["gives"] = context["score"](
+        row["text"])
+    lacks = context.get("lacks")
+    row["lacks"] = list(lacks(row["text"])) if lacks else []
+
+
+def _lacking(rows: list) -> None:
+    """A change lacking what the request writes out the code will have
+    (`requested.interface`) is no change asked -- where another change has
+    it: a name no change has was a word of the request (Exercism's
+    "raise an `exception`", "`the`"), not code asked, and refused every
+    change."""
+    kept = [row for row in rows if row.get("own ok")]
+    if not kept:
+        return
+    every = set.intersection(*(set(row.get("lacks") or ()) for row in kept))
+    for row in kept:
+        missing = [one for one in row.get("lacks") or () if one not in every]
+        if missing:
+            row["own ok"], row["lacks what"] = False, missing
+
+
 def _agreed_by_tests(rows: list, tests: int, original=(),
                      stated: int = 0, keeps: bool = False) -> list:
     """The changes the tests of what was asked choose, as CodeT chooses
@@ -443,6 +469,7 @@ def _agreed_by_tests(rows: list, tests: int, original=(),
     by none. The heaviest group, where answers written apart agree on it
     (two or more), or one passes every test there is (two or more); else
     none: a change one answer wrote is a guess."""
+    _lacking(rows)
     if keeps:
         return _kept_what_it_gives(rows, original)
     groups: dict = {}
@@ -1297,8 +1324,7 @@ def _change_once(statement: str, held, subject, key=None,
             # the tests they pass
             for row in passed:
                 if "passes" not in row:
-                    row["own ok"], row["passes"], row["gives"] = score(
-                        row["text"])
+                    _scored(row, context)
             chosen = _agreed_by_tests(passed, context.get("tests", 1),
                                       context.get("original"),
                                       context.get("stated", 0),
@@ -1394,8 +1420,7 @@ def _change_once(statement: str, held, subject, key=None,
                     row["refused"] = f"run again, {why}"
             score_ = (context or {}).get("score")
             if score_ is not None and row in passed:
-                row["own ok"], row["passes"], row["gives"] = score_(
-                    row["text"])
+                _scored(row, context)
     # the code model's changes (v698 `requested.rewritten`): the function
     # written whole again -- where the editors write a line or two of it
     head_, tail_ = "".join(lines[:start - 1]), "".join(lines[end:])
@@ -1421,8 +1446,7 @@ def _change_once(statement: str, held, subject, key=None,
         seen[made] = row
         check(row)
         if (context or {}).get("score") is not None and row in passed:
-            row["own ok"], row["passes"], row["gives"] = context["score"](
-                row["text"])
+            _scored(row, context)
     if (context or {}).get("score") is not None:
         # the changes the tests of what was asked choose, over all of them
         chosen = _agreed_by_tests(passed, context.get("tests", 1),
@@ -1434,6 +1458,8 @@ def _change_once(statement: str, held, subject, key=None,
             row["verified"] = row in chosen
             if row not in chosen:
                 row["refused"] = (
+                    f"run again, {row['lacks what'][0]}"
+                    if row.get("lacks what") else
                     "run again, it breaks the project's tests"
                     if not row.get("own ok") else
                     f"run again, {len(row.get('passes', ()))} of {tests} "

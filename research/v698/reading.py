@@ -138,6 +138,14 @@ def read(text: str, known=()) -> Reading | None:
     said = words(text)
     if not said:
         return None
+    if not encoder.whole(said):
+        # longer than the encoder reads (an exercise's instructions, its
+        # examples, then `modify the supplied files: accumulate.py`): read
+        # by its parts, the one that asks something done taken as what is
+        # asked -- the rest is what it is asked of
+        part = _asking(text, known)
+        if part is not None:
+            text, said = part, words(part)
     found = encoder.read(said, tags=_known(said, known), heads=HEADS)
     # what can be meant depends on the conversation's state: what is said
     # back to a plan only where one is held -- read with its state word
@@ -166,6 +174,53 @@ def read(text: str, known=()) -> Reading | None:
 #: what is asked done to code: one of them read surely, together, is code
 #: talk however the reader shares between them
 DOING = ("make", "change", "goal")
+#: what a doing is of, said by name: the project, a file, something in it
+NAMED = ("project", "file", "named")
+
+
+def _parts(text: str) -> list:
+    """A long message's parts, as it is laid out: its paragraphs, code
+    blocks left out, and a paragraph too long to be read whole its
+    lines and sentences."""
+    import re
+    from research.v692.corpus import words
+    plain = re.sub(r"```.*?```", "\n\n", text, flags=re.S)
+    out = []
+    for paragraph in re.split(r"\n\s*\n", plain):
+        paragraph = paragraph.strip()
+        said = words(paragraph) if paragraph else []
+        if not said:
+            continue
+        if encoder.whole(said):
+            out.append(paragraph)
+        else:
+            out += [one.strip() for one in
+                    re.split(r"(?<=[.!?:])\s+|\n", paragraph) if one.strip()]
+    return out
+
+
+def _asking(text: str, known=()) -> str | None:
+    """The part of a long message that asks something done -- read as a
+    doing surely, one saying what of by name before one that does not
+    (`Implement the accumulate operation ...` and `modify the supplied
+    files: accumulate.py` are both changes; the second says of what) --
+    or None where no part does."""
+    from research.v692.corpus import words
+    best, found = 0.0, None
+    for part in _parts(text):
+        said = words(part)
+        if not said or not encoder.whole(said):
+            continue
+        read = encoder.read(said, tags=_known(said, known),
+                            heads=("code_act", "code_subject"))
+        doing = sum(chance for act, chance in read["code_act"]
+                    if act in DOING)
+        if read["code_act"][0][0] not in DOING or doing < FLOOR:
+            continue
+        score = doing + (read["code_subject"][0][0] in NAMED)
+        if score > best:
+            best, found = score, part
+    return found
 
 
 def code_talk(text: str, known=()) -> Reading | None:
