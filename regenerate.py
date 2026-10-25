@@ -1196,6 +1196,16 @@ def steps() -> list[Step]:
              _lines_check(DATA / "wtq" / "test.jsonl", 18000,
                           "18486 when made"),
              cost="a few minutes"),
+        Step("repoqa", "RepoQA: functions asked for by what they do, 200 "
+                       "of Python and TypeScript, each needle's code a "
+                       "project of its own",
+             lambda: (_run("research.v704.repoqa", "fetch"),
+                      _run("research.v704.repoqa", "projects")),
+             lambda: (f"{len(list((DATA / 'repoqa' / 'projects').iterdir()))}"
+                      " projects") if (DATA / "repoqa" / "projects").exists()
+             and len(list((DATA / "repoqa" / "projects").iterdir())) >= 200
+             else None,
+             cost="a few minutes"),
         Step("sparc", "SParC: sequences of questions of a database, each "
                       "leaning on the last; 200 of dev said, each "
                       "database's tables a project of CSV files",
