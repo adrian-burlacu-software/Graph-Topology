@@ -66,6 +66,9 @@ RECORDS: dict = {}
 #: what a follow-up's `these`, `how many are there?` asks of
 #: (`querying._kept`)
 KEPT: dict = {}
+#: the turn the data last answered, by conversation: what a follow-up no
+#: part answers is asked of (`give me their names`, after a list of them)
+DATA_TURN: dict = {}
 
 
 def _key(session):
@@ -1216,6 +1219,7 @@ def replies(session) -> list:
             found = data_found(memory)
             if found is None:
                 return None
+            DATA_TURN[_key(session)] = v697_page._turn(memory)
             if found.looked.get("beyond"):
                 # a question of the data asking what is not looked up yet:
                 # said so, unsure
@@ -1288,7 +1292,7 @@ def replies(session) -> list:
             return found[1].path if found else None
 
         def unanswered_data(memory):
-            path = of_the_data(memory)
+            path = of_the_data(memory) or "the project's data"
             reply = asking._reply("data", typed(memory), (
                 f"I can't answer that from {path}: what it asks is more than "
                 f"I can look up in it."), {"query": None})
@@ -1300,12 +1304,25 @@ def replies(session) -> list:
         # not left to the conversation's own (`what was the last season
         # played?` of a table of seasons: "The last season was good. It was
         # short, long, and special.")
+        from research.v689.social import ACTS as SOCIAL
+
+        def after_data(memory) -> bool:
+            """Just after the data answered, a question nothing here
+            answers, that is no social act (`give me their names` after a
+            list of them: "Some names I know of: signature, nickname")."""
+            reading_ = memory.get("reading")
+            return DATA_TURN.get(_key(session), -1) == \
+                v697_page._turn(memory) - 1 and not pastes(memory) and \
+                reading_ is not None and reading_.act not in SOCIAL
+
         out.append(Operator(
             name="data unanswered", apply=unanswered_data,
-            proposes=lambda memory: of_the_data(memory) is not None,
+            proposes=lambda memory: of_the_data(memory) is not None or
+            after_data(memory),
             utility=DATA_UNANSWERED,
-            rule="a question naming the project's data that nothing here "
-                 "answers: said so, not answered of the world"))
+            rule="a question naming the project's data, or following its "
+                 "answer, that nothing here answers: said so, not answered "
+                 "of the world"))
 
     if reading.taught():
         def talks(memory) -> bool:

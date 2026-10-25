@@ -601,6 +601,31 @@ class RequestedTests(unittest.TestCase):
         self.assertIn('"""Every book."""', changed["shelf/books.py"])
 
 
+class DataWrittenTests(unittest.TestCase):
+
+    def test_a_data_file_changed_only_by_what_was_said(self):
+        from research.v700.fixing import _unsaid
+        rows = "id,name,email\n1,Ada,ada@x.org\n"
+        self.assertEqual(_unsaid(
+            "add a customer with id 4 named Charles Darwin, email "
+            "charles@example.com", rows,
+            rows + "4,Charles Darwin,charles@example.com\n"), set())
+        self.assertEqual(_unsaid("remove Ada", rows, "id,name,email\n"),
+                         set())
+        # a question read as a change: what it writes, no one said
+        self.assertEqual(_unsaid(
+            "show the number for each shop", "shop_id,name\n1,FC Haka\n",
+            "shop_id,name,number\n1,FC Haka,2\n"), {"2"})
+        # a column put in, no row changed: nothing of the data said
+        self.assertTrue(_unsaid(
+            "show the number for each shop", "shop_id,name\n1,FC Haka\n",
+            "shop_id,name,number\n1,FC Haka\n", "data/shop.csv"))
+        # a row of a cell more than the columns
+        self.assertTrue(_unsaid(
+            "how about those in year 2014?", "id,year\n1,2014\n2,2015\n",
+            "id,year\n1,2014,2014\n2,2015\n", "data/concert.csv"))
+
+
 class CodeTalkTests(unittest.TestCase):
 
     def test_a_doing_sure_together_is_code_talk(self):

@@ -481,6 +481,39 @@ def _agreed_by_tests(rows: list, tests: int, original=(),
     return []
 
 
+#: a value as data writes it, and as a request says it: words, numbers,
+#: dates, addresses
+VALUE = re.compile(r"[\w@.:/+-]+")
+
+
+def _values(text: str) -> set:
+    return {one.strip(".,:;-").lower() for one in VALUE.findall(text)
+            if one.strip(".,:;-")}
+
+
+def _unsaid(statement: str, before: str, after: str, path: str = "") -> set:
+    """The values a change of a data file puts in that it did not hold and
+    the request does not say -- and a table's columns changed with no row
+    of it (`Number` put after `City`, every row as it was: no value said
+    for it, nothing of the data changed)."""
+    unsaid = _values(after) - _values(before) - _values(statement)
+    if path.lower().endswith(".csv"):
+        old, new = before.splitlines(), after.splitlines()
+        if old[1:] == new[1:] and old[:1] != new[:1]:
+            unsaid |= {"(a column, and no value in it)"}
+        # a row of more cells, or fewer, than the table has columns, where
+        # every row had as many (`2014` put after a concert's year)
+        import csv
+
+        def ragged(text: str) -> bool:
+            rows = [row for row in csv.reader(text.splitlines()) if row]
+            return any(len(row) != len(rows[0]) for row in rows[1:]) \
+                if rows else False
+        if ragged(after) and not ragged(before):
+            unsaid |= {"(a row of more or fewer cells than the columns)"}
+    return unsaid
+
+
 def _extends(part: str, core: str, more: str) -> bool:
     """Whether `more` makes the change `core` makes, and more besides:
     the same lines taken out, and each line `core` puts in put in by
@@ -1470,6 +1503,28 @@ def _change_once(statement: str, held, subject, key=None,
             row["by"] = row["by"] | within
             row["agree"] = len(row["by"])
             row["within"] = more
+    # a data file is changed only by what was said: each value a change
+    # puts in that the file did not hold is one the request says (`add a
+    # customer ... Charles Darwin, charles@example.com`) -- a question
+    # read as a change says none (SParC: `show the number for each shop`
+    # wrote two lines of employee.csv)
+    if data:
+        for row in passed:
+            unsaid = _unsaid(statement, text, row["text"], path)
+            if unsaid:
+                row["refused"] = (f"it writes what was not said: "
+                                  f"{', '.join(sorted(unsaid)[:4])}")
+        passed = [row for row in passed if "refused" not in row]
+        if not passed:
+            out["tried"] = [{key_: value for key_, value in one.items()
+                             if key_ not in ("text", "made", "by")}
+                            for one in tried]
+            out.update({"status": "unchanged", "said": (
+                f"I did not change {subject.name}: what you said gives "
+                f"no value to put in it -- nothing was written. Is it a "
+                f"question about the data, or what should it hold?")})
+            out["seconds"] = round(time.time() - started, 2)
+            return out
     # whether each does what was said: the judge's reading of the statement
     # against the change (`teach_judge.py`) -- a change it does not believe
     # is not written, however well it compiles
