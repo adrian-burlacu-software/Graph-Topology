@@ -31,6 +31,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
+from pathlib import Path
 
 from research.v698 import project as Pj
 
@@ -365,6 +366,8 @@ def about(aspect: str, subject: Subject, text: str, held, space, turn: int,
         for field_ in ("text", "spoken"):
             found[field_] = (f"{found[field_]} (Or {subject.also}: it is as "
                              f"near to what you said.)")
+        # two as near: no sure answer of which
+        found["code"]["answer"]["status"] = "unsure"
     FOCUS[key] = (subject, turn)
     found.setdefault("suggest", _suggest(held, subject, aspect))
     found["code"]["subject"] = {"kind": subject.kind, "name": subject.name,
@@ -1086,32 +1089,108 @@ def _said_as(name: str) -> str:
                                name)).lower()
 
 
-def _described(held, said: str, aspect: str) -> Subject | None:
-    """What a project has that a question says by what it does, found by
-    meaning: each symbol said as its kind, its name's words, what is said
-    of it (and a constant's value) -- the nearest, where it is near enough
-    and ahead of the next; else None."""
+#: the encoder taught to put a description near the code that does it
+#: (`teach_search.py`, CodeSearchNet), and how near and how far ahead of
+#: the next the nearest must be, by it -- set on CodeSearchNet's
+#: validation split (70 repositories, each function asked by its
+#: docstring, the docstring out of its code): 0.4 and 0.06 answered 61%,
+#: 91% of them right
+SEARCH = Path(__file__).resolve().parents[2] / "llm" / "search-minilm"
+SEARCHED, SEARCH_AHEAD = 0.4, 0.06
+#: how much of a question is read, in word pieces (the same split: 256
+#: found 524 of 697 nearest, 64 found 498; a symbol's name beside its code
+#: found fewer, 519)
+ASKED_LONGEST = 256
+
+
+def _searched(texts: list, longest: int):
+    import torch
+    from transformers import AutoModel, AutoTokenizer
+    if "search" not in _MEANT:
+        _MEANT["search tokenizer"] = AutoTokenizer.from_pretrained(SEARCH)
+        _MEANT["search"] = AutoModel.from_pretrained(SEARCH).eval()
+    out = []
+    for at in range(0, len(texts), 64):
+        batch = _MEANT["search tokenizer"](
+            texts[at:at + 64], padding=True, truncation=True,
+            max_length=longest, return_tensors="pt")
+        with torch.no_grad():
+            hidden = _MEANT["search"](**batch).last_hidden_state
+        mask = batch["attention_mask"].unsqueeze(-1)
+        out.append(torch.nn.functional.normalize(
+            (hidden * mask).sum(1) / mask.sum(1), dim=-1))
+    return torch.cat(out)
+
+
+def _symbols(held, kinds: tuple) -> list:
+    """What a question may say by what it does: the symbols Python's index
+    has, and the functions and methods of the rest of the project's code as
+    its outline has them (JavaScript, TypeScript: none were looked at, and
+    a question of them was answered of the world)."""
+    from types import SimpleNamespace
     index = held.index()
-    kinds = KINDS_ASKED.get(aspect, ("function", "method", "class",
-                                     "constant"))
     rows = [one for one in index.symbols.values()
             if one.kind in kinds and not index.is_test(one.file)]
+    for one in held.functions():
+        if one["file"].endswith(".py"):
+            continue
+        kind = "method" if one.get("class") else "function"
+        if kind not in kinds:
+            continue
+        rows.append(SimpleNamespace(
+            name=f"{one['class']}.{one['name']}" if one.get("class")
+            else one["name"], kind=kind, file=one["file"],
+            doc=one.get("doc") or "", value="", start=one["start"],
+            end=one["end"]))
+    return rows
+
+
+def _code_of(held, one) -> str:
+    """A symbol as its code says it: a function's lines, a constant's
+    name and value, a class's first lines."""
+    if one.kind == "constant":
+        return f"{one.name} = {one.value}"
+    lines = held.files.get(one.file, "").splitlines()
+    start, end = int(one.start or 1), int(one.end or one.start or 1)
+    if one.kind == "class":
+        end = min(end, start + 12)
+    return "\n".join(lines[start - 1:end])[:2000]
+
+
+def _described(held, said: str, aspect: str) -> Subject | None:
+    """What a project has that a question says by what it does, found by
+    meaning: each symbol as its code says it, by the encoder taught to put
+    a description near the code that does it (`SEARCH`) -- where it is not
+    there, as its kind, its name's words, what is said of it (and a
+    constant's value) -- the nearest, where it is near enough and ahead of
+    the next; else None."""
+    kinds = KINDS_ASKED.get(aspect, ("function", "method", "class",
+                                     "constant"))
+    rows = _symbols(held, kinds)
     if not rows:
         return None
-    key = (getattr(held, "_index_key", None), kinds)
+    searching = (SEARCH / "config.json").exists()
+    key = (hash(tuple(sorted((path, hash(text))
+                             for path, text in held.files.items()))),
+           kinds, searching)
     if key not in _MEANT:
-        _MEANT[key] = _meaning([
+        _MEANT[key] = _searched([_code_of(held, one) for one in rows],
+                                256) if searching else _meaning([
             f"{one.kind} {_said_as(one.name)}: {one.doc}"
             + (f" = {one.value}" if one.value else "") for one in rows])
-    scores = (_meaning([said]) @ _MEANT[key].T)[0].tolist()
+    asked = _searched([said], ASKED_LONGEST) if searching else \
+        _meaning([said])
+    scores = (asked @ _MEANT[key].T)[0].tolist()
     ranked = sorted(zip(scores, range(len(rows))), reverse=True)
     best, at = ranked[0]
-    if best < DESCRIBED:
+    least, ahead = (SEARCHED, SEARCH_AHEAD) if searching else (DESCRIBED,
+                                                               AHEAD)
+    if best < least:
         return None
     one = rows[at]
     # two as near: both said, the nearer first
     also = rows[ranked[1][1]].name if len(ranked) > 1 and \
-        ranked[1][0] > best - AHEAD else ""
+        ranked[1][0] > best - ahead else ""
     return Subject("function" if one.kind in ("function", "method") else
                    "symbol", one.name, one.file, also)
 

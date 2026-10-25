@@ -601,6 +601,32 @@ class RequestedTests(unittest.TestCase):
         self.assertIn('"""Every book."""', changed["shelf/books.py"])
 
 
+class DescribedTests(unittest.TestCase):
+
+    def test_a_javascript_function_found_by_what_it_does(self):
+        from research.v698 import asking
+        from research.v698.project import Project
+        project = Project("js")
+        project.put({"lib/util.js": (
+            "function reverseWords(text) {\n"
+            "  return text.split(' ').reverse().join(' ');\n}\n\n"
+            "function totalPrice(items) {\n"
+            "  let sum = 0;\n"
+            "  for (const item of items) { sum += item.price * item.count; }\n"
+            "  return sum;\n}\n")})
+        names = {one.name for one in asking._symbols(
+            project, ("function", "method"))}
+        self.assertEqual(names, {"reverseWords", "totalPrice"})
+        found = asking._described(
+            project, "which function adds up what all the items cost, "
+                     "each price times how many", "where")
+        self.assertEqual(found.name, "totalPrice")
+        found = asking._described(
+            project, "which function puts the words of a sentence in the "
+                     "opposite order", "where")
+        self.assertEqual(found.name, "reverseWords")
+
+
 class DataWrittenTests(unittest.TestCase):
 
     def test_a_data_file_changed_only_by_what_was_said(self):

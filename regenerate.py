@@ -1196,6 +1196,16 @@ def steps() -> list[Step]:
              _lines_check(DATA / "wtq" / "test.jsonl", 18000,
                           "18486 when made"),
              cost="a few minutes"),
+        Step("search", "an encoder taught to put a description near the code "
+                       "that does it (v698 `teach_search`): CodeSearchNet's "
+                       "Python and JavaScript train split, RepoQA's "
+                       "repositories held out -- what a function said by "
+                       "what it does is found by (`asking._described`)",
+             lambda: (_run("research.v698.teach_search", "fetch"),
+                      _run("research.v698.teach_search", "train")),
+             lambda: "trained" if (LLM / "search-minilm" /
+                                   "config.json").exists() else None,
+             needs=("repoqa", "minilm"), cost="half an hour", gpu=True),
         Step("repoqa", "RepoQA: functions asked for by what they do, 200 "
                        "of Python and TypeScript, each needle's code a "
                        "project of its own",

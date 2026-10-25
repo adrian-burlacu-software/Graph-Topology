@@ -79,6 +79,11 @@ def _append(path: Path, row: dict) -> None:
 
 # -- the teacher -------------------------------------------------------------
 
+#: the longest prompt written from, in tokens: attention over more does not
+#: fit the 8 GB card beside the model, and spills into the machine's memory
+MOST_TOKENS = 4608
+
+
 class Teacher:
     """SmolLM3 in 4 bits, writing in batches (left-padded)."""
 
@@ -107,6 +112,12 @@ class Teacher:
             for one in prompts]
         batch = self.tokenizer(texts, return_tensors="pt", padding=True,
                                add_special_tokens=False).to("cuda")
+        if batch["input_ids"].shape[1] > MOST_TOKENS:
+            # a prompt longer than the card can attend over: refused, not
+            # spilled (RepoQA's 16k tokens took the 8 GB card and 25 GB of
+            # the machine's memory with it)
+            raise MemoryError(f"a prompt of {batch['input_ids'].shape[1]} "
+                              f"tokens: at most {MOST_TOKENS}")
         settings = (dict(do_sample=False) if samples == 1 else
                     dict(do_sample=True, temperature=temperature,
                          top_p=0.95, num_return_sequences=samples))
