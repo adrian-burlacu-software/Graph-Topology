@@ -1216,6 +1216,15 @@ def steps() -> list[Step]:
              and len(list((DATA / "repoqa" / "projects").iterdir())) >= 200
              else None,
              cost="a few minutes"),
+        Step("aider", "Aider's editing benchmark: Exercism's Python "
+                      "exercises, each stub a project, its tests apart",
+             lambda: (_run("research.v704.aider", "fetch"),
+                      _run("research.v704.aider", "projects")),
+             lambda: (f"{len(list((DATA / 'exercism' / 'projects').iterdir()))}"
+                      " projects") if (DATA / "exercism" / "projects").exists()
+             and len(list((DATA / "exercism" / "projects").iterdir())) >= 140
+             else None,
+             cost="a few minutes"),
         Step("sparc", "SParC: sequences of questions of a database, each "
                       "leaning on the last; 200 of dev said, each "
                       "database's tables a project of CSV files",

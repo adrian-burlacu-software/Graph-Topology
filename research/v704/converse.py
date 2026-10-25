@@ -418,7 +418,7 @@ def main(argv=None) -> int:
     parser.add_argument("--suite", default="suite",
                         choices=("suite", "heldout", "canitedit",
                                  "cruxeval-o", "cruxeval-i", "wtq", "sparc",
-                                 "repoqa"),
+                                 "repoqa", "aider"),
                         help="heldout: fixtures/garden, kept apart from "
                              "the work it measures; canitedit: CanItEdit's "
                              "changes, each its own project (canitedit.py)")
@@ -451,6 +451,9 @@ def main(argv=None) -> int:
     elif options.suite == "repoqa":
         from research.v704 import repoqa
         SUITE = repoqa.suite()
+    elif options.suite == "aider":
+        from research.v704 import aider
+        SUITE = aider.suite()
     chosen = [(at, one) for at, one in enumerate(SUITE)
               if (options.area is None or one.area == options.area) and
               (not options.core or one.area in CORE) and
