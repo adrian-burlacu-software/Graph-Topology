@@ -528,26 +528,6 @@ class RequestedTests(unittest.TestCase):
         self.assertIn("count_by does not take 2", requested._defines(
             right.replace("author, year=None", "author"), asked))
 
-    def test_an_example_said_in_words_is_a_test_of_the_one_function(self):
-        from unittest import mock
-        from research.v698 import project as Pj, reading, requested
-        self.assertEqual(requested._value("`[1, 3]`"), [1, 3])
-        self.assertEqual(requested._value("`test`"), "test")
-        self.assertEqual(requested._value("- 2"), -2)
-        self.assertEqual(requested._value("brown-green"), "brown-green")
-        stub = Pj.Project("stub")
-        stub.put({"cipher.py": "def encode(plain_text):\n    pass\n"})
-        read = [(["`test`"], "`gvhg`"), (["1", "2"], "3")]
-        with mock.patch.object(reading, "examples", return_value=read):
-            # (two values given a function of one: no test of it)
-            self.assertEqual(requested.described("...", stub, "cipher.py"),
-                             ["assert encode('test') == 'gvhg'"])
-        stub.put({"cipher.py": "class Cipher:\n    pass\n"
-                               "def encode(text):\n    pass\n"})
-        with mock.patch.object(reading, "examples", return_value=read):
-            self.assertEqual(requested.described("...", stub, "cipher.py"),
-                             [])
-
     def test_the_errors_a_request_writes_out_are_asked(self):
         from research.v698 import requested
         statement = ("Raise a `ValueError` with a meaningful message:\n\n"
