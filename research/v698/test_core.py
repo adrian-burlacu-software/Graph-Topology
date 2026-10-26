@@ -683,6 +683,20 @@ class DataWrittenTests(unittest.TestCase):
 
 class CodeTalkTests(unittest.TestCase):
 
+    def test_an_answer_of_what_was_typed_answers_the_turn(self):
+        from types import SimpleNamespace
+        from research.v687.executive import ANSWERED, CONTINUE, Operator
+        from research.v698 import page
+        # an operator of the page answers what was typed, whole: the claims
+        # an utterance was read as after it are not acted on again
+        turn = SimpleNamespace()
+        page._whole(Operator("x", lambda memory: CONTINUE)).apply(
+            {"turn": turn})
+        self.assertFalse(getattr(turn, "whole", False))
+        page._whole(Operator("x", lambda memory: ANSWERED)).apply(
+            {"turn": turn})
+        self.assertTrue(turn.whole)
+
     def test_a_long_request_is_read_by_the_part_that_asks(self):
         from research.v698 import reading
         if not reading.taught():

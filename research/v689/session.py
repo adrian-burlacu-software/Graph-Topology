@@ -547,6 +547,12 @@ class Session:
                     and (one.act in ("generic", "teach", "define")
                          or ("again", "question") in one.cells)):
                 self._last_kind = one.mention.kind
+            if getattr(turn, "whole", False):
+                # answered of the utterance whole, not of this claim (a
+                # layer's operator reading what was typed): the claims
+                # after it are not acted on again
+                parts = parts[:index + 1]
+                break
         if len(parts) > 1:
             turn.resolution, turn.binding = first
             outcomes = [one.get("outcome") for one in replies]

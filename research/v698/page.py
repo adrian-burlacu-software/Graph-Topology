@@ -1383,7 +1383,27 @@ def replies(session) -> list:
     return out
 
 
-v689.contributes(replies)
+def _whole(operator: Operator) -> Operator:
+    """An operator here that answers has answered what was typed, whole
+    (`typed`, not the claim it was asked on): the turn is answered -- the
+    rest of an utterance read as several claims is not acted on again
+    (an exercise's instructions, read as five claims, had its change
+    written five times over: 502 s, of a turn's 300)."""
+    import dataclasses
+
+    def apply(memory):
+        outcome = operator.apply(memory)
+        if outcome == ANSWERED and memory.get("turn") is not None:
+            memory["turn"].whole = True
+        return outcome
+    return dataclasses.replace(operator, apply=apply)
+
+
+def whole_replies(session) -> list:
+    return [_whole(one) for one in replies(session)]
+
+
+v689.contributes(whole_replies)
 # what is taught, used in writing code: told to the writers, offered to
 # the search (`knowledge.context`)
 if knowledge.context not in coding.CONTEXT:
