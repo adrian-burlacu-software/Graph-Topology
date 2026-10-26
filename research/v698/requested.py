@@ -501,6 +501,97 @@ def interface(statement: str, held) -> dict:
     return out
 
 
+#: a block of code in a request, fenced
+FENCED = re.compile(r"```[\w+-]*\n(.*?)```", re.S)
+
+
+def raised(statement: str, held=None) -> list:
+    """The errors a request writes out the code will raise, as Python
+    writes them -- `raise ValueError("input base must be >= 2")` in a block
+    of its code: the messages, each a string the change will have (Exercism
+    says them, and its tests check them). Code read, not words: a block
+    that is not Python says none, and a message the project has already
+    is asked of no change."""
+    text = "\n".join(held.files.values()) if held is not None else ""
+    out = []
+    for block in FENCED.findall(statement):
+        try:
+            tree = ast.parse(block)
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Raise) or not isinstance(
+                    node.exc, ast.Call):
+                continue
+            for one in node.exc.args[:1]:
+                if isinstance(one, ast.Constant) and isinstance(
+                        one.value, str) and one.value.strip() and \
+                        one.value not in out and one.value not in text:
+                    out.append(one.value)
+    return out
+
+
+def _value(typed: str):
+    """A value as a request types it: Python's own (`[1, 3]`, `'a'`, `-2`),
+    in backquotes or not -- else, a word, the word (`brown-green`)."""
+    shown = typed.strip().strip("`").strip()
+    try:
+        return ast.literal_eval(shown)
+    except (ValueError, SyntaxError):
+        pass
+    if re.fullmatch(r"[\w-]+", shown):
+        return shown
+    raise ValueError(typed)
+
+
+def described(statement: str, held, path: str) -> list:
+    """The examples a request says in words, as tests (`reading.examples`:
+    "Encoding `test` gives `gvhg`" -> `assert encode('test') == 'gvhg'`):
+    of a file whose code is one function to write, each example
+    giving it as many values as it takes. Read, not guessed -- but read by
+    a reader, not said as code: weighed among the tests, not held true as
+    `stated` is."""
+    from research.v698 import reading
+    try:
+        tree = ast.parse(held.files.get(path, ""))
+    except SyntaxError:
+        return []
+    functions = [node for node in tree.body
+                 if isinstance(node, ast.FunctionDef)
+                 and not node.name.startswith("_")]
+    if len(functions) != 1 or any(isinstance(node, ast.ClassDef)
+                                  for node in tree.body):
+        return []
+    entry = functions[0]
+    takes = len(entry.args.posonlyargs + entry.args.args)
+    least = takes - len(entry.args.defaults)
+    out = []
+    for inputs, gives in reading.examples(statement, {entry.name}):
+        if not least <= len(inputs) <= takes:
+            continue
+        try:
+            args = [_value(one) for one in inputs]
+            value = _value(gives)
+        except ValueError:
+            continue
+        test = (f"assert {entry.name}({', '.join(map(repr, args))}) == "
+                f"{value!r}")
+        if test not in out:
+            out.append(test)
+    return out
+
+
+def _unraised(text: str, messages: list) -> list:
+    """What of the messages asked code never says: each a string of it."""
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return []
+    said = {node.value for node in ast.walk(tree)
+            if isinstance(node, ast.Constant) and isinstance(node.value, str)}
+    return [f"it never says {one!r}" for one in messages if one not in said]
+
+
 def stated(statement: str, names) -> list:
     """The examples a request says of what the code will give, as tests:
     `heronArea(3, 4, 5) should return 6.0` -> a test of heronArea -- read
@@ -615,13 +706,19 @@ def checker(statement: str, held, path: str, keeps: bool = False) -> dict:
         # are guesses -- kept where the project as it is fails them, and
         # asked of every change whether it does or not
         asked = interface(statement, held)
+        messages = raised(statement, held)
         names = {one.name.split(".")[-1] for one in
                  held.index().symbols.values() if one.file == path} | \
             set(asked)
         said = stated(statement, names)
         told = [code for code in said
                 if not _runs(root, code, _module(path))[0]]
-        kept = told + [code for code in kept if code not in told]
+        # and those it says in words, read: before the code model's guesses
+        worded = [code for code in described(statement, held, path)
+                  if code not in told and
+                  not _runs(root, code, _module(path))[0]]
+        kept = told + worded + [code for code in kept
+                                if code not in told + worded]
         own = [one for one in _own_tests(held) if _test_file(root, one)]
         # the calls a change is run on: those the tests make, and inputs
         # the code model chooses as what the request concerns -- inputs,
@@ -671,7 +768,7 @@ def checker(statement: str, held, path: str, keeps: bool = False) -> dict:
         (`interface`) a change lacks: no change asked where another change
         has it -- a name no change has was a word of the request ("raise an
         `exception`"), not code asked."""
-        return _lacking(changed, asked)
+        return _lacking(changed, asked) + _unraised(changed, messages)
 
     def verify_files(changes: dict, least: int | None = None) -> str:
         """'' where the project, these files so changed, holds: its own

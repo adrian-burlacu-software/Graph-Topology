@@ -2172,6 +2172,17 @@ def steps() -> list[Step]:
              _model_check(LLM / "reader-code66", 80),
              needs=("reader-values-talk", "sparc"), cost="minutes",
              gpu=True),
+        Step("examples", "a reader of where a request says an example of "
+                         "what its code gives -- its input and what it "
+                         "gives, word by word (MiniLM taught whole, from "
+                         "MBPP's train and validation calls; v698 "
+                         "`teach_examples`)",
+             lambda: (_run("research.v698.teach_examples", "fetch"),
+                      _run("research.v698.teach_examples", "corpus"),
+                      _run("research.v698.teach_examples", "train")),
+             lambda: "trained" if (LLM / "example-reader" /
+                                   "config.json").exists() else None,
+             needs=("search", "minilm"), cost="minutes", gpu=True),
         Step("already", "whether a function already takes what a change "
                         "asks it to take, read against each parameter as "
                         "the code says what it is (v705 `teach_already`, "

@@ -3100,6 +3100,15 @@ def train(base: Path, out: Path, epochs: int, batch: int, rate: float,
     rows, held = _load("train"), _load("valid")
     weights = _weights(rows)
     spec = labels(rows + held)
+    if only and (base / "labels.json").exists():
+        # a head the base has not, and not taught here, is not made: left
+        # as it starts it reads noise, and is read (`data_of` comes with any
+        # head taught alone over the data subject, SParC's records holding
+        # its labels, untaught)
+        had = json.loads((base / "labels.json").read_text(
+            encoding="utf-8")).get("heads", {})
+        spec["heads"] = {name: head for name, head in spec["heads"].items()
+                         if name in had or name in only}
     index = {name: {label: at for at, label in enumerate(head["labels"])}
              for name, head in spec["heads"].items()}
     device = "cuda" if torch.cuda.is_available() else "cpu"
