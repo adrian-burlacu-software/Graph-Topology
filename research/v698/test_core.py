@@ -528,6 +528,49 @@ class RequestedTests(unittest.TestCase):
         self.assertIn("count_by does not take 2", requested._defines(
             right.replace("author, year=None", "author"), asked))
 
+    def test_samples_that_do_not_fit_are_written_in_halves(self):
+        import torch
+        from research.v696 import teach_meaning
+
+        class Tokens(dict):
+            def to(self, device):
+                return self
+
+        class Tokenizer:
+            pad_token_id = 0
+
+            def apply_chat_template(self, chat, **kwargs):
+                return chat[0]["content"]
+
+            def __call__(self, texts, **kwargs):
+                return Tokens(input_ids=torch.zeros((len(texts), 3),
+                                                    dtype=torch.long))
+
+            def decode(self, row, **kwargs):
+                return "sampled"
+
+        class Model:
+            def __init__(self):
+                self.asked = []
+
+            def generate(self, input_ids, max_new_tokens, pad_token_id,
+                         **settings):
+                many = settings.get("num_return_sequences", 1)
+                self.asked.append((many, settings["do_sample"]))
+                if many > 2:
+                    raise torch.cuda.OutOfMemoryError("CUDA out of memory")
+                return torch.zeros((many, 5), dtype=torch.long)
+        writer = teach_meaning.Teacher.__new__(teach_meaning.Teacher)
+        writer.torch, writer.tokenizer, writer.model = torch, Tokenizer(), \
+            Model()
+        got = writer.write(["write tests"], longest=10, samples=6)
+        # six did not fit: three and three, then two and one twice -- all
+        # sampled, none greedy
+        self.assertEqual(len(got[0]), 6)
+        self.assertTrue(all(sampled for _, sampled in writer.model.asked))
+        self.assertEqual(sum(many for many, _ in writer.model.asked
+                             if many <= 2), 6)
+
     def test_a_server_whose_card_is_lost_says_so(self):
         from research.v698 import server
         self.assertTrue(server.wedged(RuntimeError(

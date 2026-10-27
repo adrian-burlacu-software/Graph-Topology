@@ -104,8 +104,9 @@ class Teacher:
         self.model.eval()
 
     def write(self, prompts: list, longest: int, samples: int = 1,
-              temperature: float = 0.7) -> list:
-        """For each prompt, `samples` replies (greedy when one)."""
+              temperature: float = 0.7, sampled: bool = False) -> list:
+        """For each prompt, `samples` replies (greedy when one, unless
+        `sampled`)."""
         texts = [self.tokenizer.apply_chat_template(
             [{"role": "user", "content": one}], tokenize=False,
             add_generation_prompt=True, enable_thinking=False)
@@ -118,13 +119,27 @@ class Teacher:
             # the machine's memory with it)
             raise MemoryError(f"a prompt of {batch['input_ids'].shape[1]} "
                               f"tokens: at most {MOST_TOKENS}")
-        settings = (dict(do_sample=False) if samples == 1 else
-                    dict(do_sample=True, temperature=temperature,
-                         top_p=0.95, num_return_sequences=samples))
-        with self.torch.no_grad():
-            made = self.model.generate(
-                **batch, max_new_tokens=longest,
-                pad_token_id=self.tokenizer.pad_token_id, **settings)
+        settings = (dict(do_sample=False) if samples == 1 and not sampled
+                    else dict(do_sample=True, temperature=temperature,
+                              top_p=0.95, num_return_sequences=samples))
+        try:
+            with self.torch.no_grad():
+                made = self.model.generate(
+                    **batch, max_new_tokens=longest,
+                    pad_token_id=self.tokenizer.pad_token_id, **settings)
+        except self.torch.cuda.OutOfMemoryError:
+            if samples < 2:
+                raise
+            # the samples written in halves: all at once did not fit beside
+            # what the card holds (a long request's tests, in the server:
+            # none written, and every change of it left unsure)
+            del batch
+            self.torch.cuda.empty_cache()
+            half = samples // 2
+            first = self.write(prompts, longest, half, temperature, True)
+            rest = self.write(prompts, longest, samples - half, temperature,
+                              True)
+            return [one + two for one, two in zip(first, rest)]
         width = batch["input_ids"].shape[1]
         out = [[] for _ in prompts]
         for index, row in enumerate(made[:, width:]):
