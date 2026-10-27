@@ -180,7 +180,32 @@ class Handler(v697.Handler):
             # what (`IndexError: list index out of range`)
             import traceback
             traceback.print_exc()
+            if wedged(bad):
+                self._json({"error": f"{type(bad).__name__}: {bad} -- the "
+                                     f"card is lost to this process: it "
+                                     f"stops, to be started again"}, 500)
+                import os
+                print("the card's state is lost (a CUDA fault): stopping "
+                      f"with {RESTART}, to be started again", flush=True)
+                os._exit(RESTART)
             self._json({"error": f"{type(bad).__name__}: {bad}"}, 500)
+
+
+#: the exit of a server whose card is lost to it: start it again (the
+#: editor's extension does)
+RESTART = 75
+#: what CUDA says of a fault that leaves the process's card unusable:
+#: every call after it fails the same (2026-10-27: one illegal access, and
+#: the next four turns failed in 0.0 s each)
+_LOST = ("illegal memory access", "unspecified launch failure",
+         "device-side assert", "cudaErrorLaunchFailure",
+         "cudaErrorIllegalAddress")
+
+
+def wedged(bad: BaseException) -> bool:
+    """Whether an error says the process's card is lost to it."""
+    said = f"{type(bad).__name__}: {bad}"
+    return any(one in said for one in _LOST)
 
 
 def main() -> None:

@@ -46,6 +46,17 @@ function compare(previous, health) {
   };
 }
 
+/** The exit of a server whose card was lost to it (a CUDA fault: every
+ *  call after it fails): start it again (`research/v698/server.py`
+ *  RESTART). */
+const RESTART = 75;
+
+/** Whether a server this editor started, stopped so, is started again:
+ *  once a minute at most -- a fault each start is said, not looped on. */
+function startsAgain(code, lastStart, now) {
+  return code === RESTART && (!lastStart || now - lastStart >= 60000);
+}
+
 /** A path as the server holds it: relative to the workspace, forward
  *  slashes. */
 function relative(folderPath, filePath) {
@@ -99,4 +110,5 @@ function languageOf(code) {
 }
 
 module.exports = { sidFor, asRequest, asQuestion, languageOf, base, compare, relative,
+                   RESTART, startsAgain,
                    isRead, webviewHtml };

@@ -27,6 +27,10 @@ assert.strictEqual(lib.base("http://127.0.0.1:8697/"), "http://127.0.0.1:8697");
 assert.strictEqual(lib.base(""), "http://127.0.0.1:8697");
 
 assert.deepStrictEqual(lib.compare(null, null), { up: false, restarted: false });
+assert.strictEqual(lib.startsAgain(lib.RESTART, 0, 1000), true);
+assert.strictEqual(lib.startsAgain(lib.RESTART, 1000, 30000), false);
+assert.strictEqual(lib.startsAgain(lib.RESTART, 1000, 70000), true);
+assert.strictEqual(lib.startsAgain(1, 0, 70000), false);
 assert.deepStrictEqual(lib.compare(null, { instance: "a" }), { up: true, restarted: false });
 assert.deepStrictEqual(lib.compare({ instance: "a" }, { instance: "a" }), { up: true, restarted: false });
 assert.deepStrictEqual(lib.compare({ instance: "a" }, { instance: "b" }), { up: true, restarted: true });

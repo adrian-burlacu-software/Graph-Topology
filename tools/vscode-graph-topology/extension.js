@@ -19,6 +19,7 @@ let output;            // the server's output, and the harness's own notes
 let status;            // the status-bar item
 let panel = null;      // the conversation, when open
 let child = null;      // the server process, when this editor started it
+let started = 0;       // when this editor last started it
 let health = null;     // the last /api/health
 let projectRead = false;
 let timer = null;
@@ -139,10 +140,17 @@ function startServer() {
     env: { ...process.env, PYTHONUNBUFFERED: "1" } });
   child.stdout.on("data", (data) => output.append(String(data)));
   child.stderr.on("data", (data) => output.append(String(data)));
+  started = Date.now();
   child.on("exit", (code, signal) => {
     note(`the server stopped (${signal || code})`);
     child = null;
     paint();
+    // its card lost to it (a CUDA fault): started again -- a new instance,
+    // the project sent again by the health check
+    if (lib.startsAgain(code, started, Date.now())) {
+      note("its card was lost to it: starting it again");
+      startServer();
+    }
   });
   paint();
 }

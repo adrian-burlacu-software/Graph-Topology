@@ -528,6 +528,14 @@ class RequestedTests(unittest.TestCase):
         self.assertIn("count_by does not take 2", requested._defines(
             right.replace("author, year=None", "author"), asked))
 
+    def test_a_server_whose_card_is_lost_says_so(self):
+        from research.v698 import server
+        self.assertTrue(server.wedged(RuntimeError(
+            "CUDA error: an illegal memory access was encountered")))
+        self.assertFalse(server.wedged(IndexError("list index out of range")))
+        self.assertFalse(server.wedged(RuntimeError(
+            "CUDA out of memory. Tried to allocate 20 MiB")))
+
     def test_what_code_gives_is_read_past_what_it_prints(self):
         import tempfile
         from pathlib import Path

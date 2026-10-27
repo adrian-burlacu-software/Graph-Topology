@@ -496,6 +496,11 @@ def interface(statement: str, held) -> dict:
         if keyword.iskeyword(name) or hasattr(builtins, name):
             continue
         signed = SIGNED.match(quoted)
+        if signed is not None and not signed.group(2).strip():
+            # `pop()` in words names a function, not what it takes ("no
+            # nodes left to `pop()`": every right `LinkedList` refused for
+            # a `delete` taking a value) -- a name, asked as one is
+            signed = None
         if signed is None:
             # a bare name: asked of the code where the project has it
             # nowhere (`a field skipped`)
