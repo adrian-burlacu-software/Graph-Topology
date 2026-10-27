@@ -171,8 +171,19 @@ for call in {calls!r}:
         out.append(repr(eval(call, space))[:200])
     except BaseException as bad:
         out.append(type(bad).__name__)
-print(json.dumps(out))
+print({said!r} + json.dumps(out))
 """
+#: the line the runs above say what they found on: the code run prints
+#: what it prints (Exercism's `wordy` printed a number last: a 500) --
+#: in plain text: `splitlines` splits on control characters too
+SAID = "@@said@@ "
+
+
+def _said(stdout: str):
+    """What a run above found, off the line it marked."""
+    import json
+    lines = [line for line in stdout.splitlines() if line.startswith(SAID)]
+    return json.loads(lines[-1][len(SAID):]) if lines else None
 
 
 def _gives(root: Path, calls: list, module: str = "") -> tuple:
@@ -183,11 +194,11 @@ def _gives(root: Path, calls: list, module: str = "") -> tuple:
     import json
     try:
         done = subprocess.run(
-            [sys.executable, "-I", "-c", GIVES.format(calls=calls,
+            [sys.executable, "-I", "-c", GIVES.format(said=SAID, calls=calls,
                                                       module=module)],
             cwd=root, capture_output=True, text=True, timeout=SECONDS)
-        return tuple(json.loads(done.stdout.strip().splitlines()[-1]))
-    except (subprocess.TimeoutExpired, ValueError, IndexError):
+        return tuple(_said(done.stdout))
+    except (subprocess.TimeoutExpired, ValueError, TypeError):
         return ("ran past",)
 
 
@@ -247,7 +258,7 @@ for _code in {codes!r}:
     except BaseException as bad:
         _out.append(type(bad).__name__)
     _all.append("; ".join(_out))
-print(json.dumps(_all))
+print({said!r} + json.dumps(_all))
 """
 
 
@@ -261,12 +272,12 @@ def _probed(root: Path, probes: list, module: str = "") -> tuple:
     import json
     try:
         done = subprocess.run(
-            [sys.executable, "-I", "-c", PROBED.format(codes=probes,
+            [sys.executable, "-I", "-c", PROBED.format(said=SAID, codes=probes,
                                                        module=module)],
             cwd=root, capture_output=True, text=True,
             timeout=SECONDS * 2)
-        return tuple(json.loads(done.stdout.strip().splitlines()[-1]))
-    except (subprocess.TimeoutExpired, ValueError, IndexError):
+        return tuple(_said(done.stdout))
+    except (subprocess.TimeoutExpired, ValueError, TypeError):
         return ("ran past",)
 
 
@@ -420,8 +431,10 @@ def rewritten(statement: str, held, path: str, name: str | None) -> list:
     # and eleven of CanItEdit's 91 changes ran past the turn's 300 s
     replies = []
     # as long as what is written again may be (a file of 3700 characters
-    # cut off at 900 tokens: every answer of it unread)
-    longest = 900 if name else min(1800, len(text) // 3 + 300)
+    # cut off at 900 tokens: every answer of it unread) -- and a file no
+    # shorter than a function: a stub to be written grows (Exercism's
+    # `linked_list.py`, 30 lines asked of 9, cut off at 348 every time)
+    longest = 900 if name else min(1800, max(900, len(text) // 3 + 300))
     # as many at once as fit: six of 900 tokens did, six of 1800 ran the
     # card out (CUDA out of memory, the turn lost)
     samples = max(2, min(WRITTEN // 2, WRITTEN // 2 * 900 // longest))

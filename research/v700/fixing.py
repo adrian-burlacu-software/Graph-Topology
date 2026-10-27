@@ -429,6 +429,19 @@ def _kept_what_it_gives(rows: list, original=()) -> list:
             tuple(row.get("gives") or ()) == original]
 
 
+#: the time a turn must have left to begin another pass of a change, and
+#: another round of its answers (v697 `left`: a turn past its 300 s had its
+#: reply waited for by no one, and the next turn waited on it)
+PASS_SECONDS, ROUND_SECONDS = 150, 30
+
+
+def _short(seconds: float) -> bool:
+    """Whether the turn has less than `seconds` left."""
+    from research.v697.page import left
+    remaining = left()
+    return remaining is not None and remaining < seconds
+
+
 def _scored(row: dict, context: dict) -> None:
     """A change run on the tests of what was asked (v698 `requested`):
     whether it keeps the project's own tests, the tests it passes, what it
@@ -780,15 +793,47 @@ def _outside(block: tuple, start: int, part: str, made: str) -> bool:
 
 
 def _changed_names(part: str, made: str) -> set:
-    """The names on the lines a change takes out or puts in."""
+    """The names on the lines a change takes out or puts in -- and the
+    functions and classes it changes the body of: `return text[::-1]` for
+    `pass` changes `reverse` (Exercism's stubs: every right change of
+    `reverse_string.py` refused, its lines naming nothing)."""
     out = set()
-    matcher = difflib.SequenceMatcher(None, _lines(part), _lines(made),
+    before = _lines(part)
+    matcher = difflib.SequenceMatcher(None, before, _lines(made),
                                       autojunk=False)
     for tag, i1, i2, j1, j2 in matcher.get_opcodes():
         if tag == "equal":
             continue
-        for line in _lines(part)[i1:i2] + _lines(made)[j1:j2]:
+        for line in before[i1:i2] + _lines(made)[j1:j2]:
             out.update(re.findall(r"[A-Za-z_$][\w$]*", line))
+        out.update(_enclosing(before, max(0, i1 - (tag == "insert"))))
+    return out
+
+
+#: a definition's line: its name
+DEFINED = re.compile(r"\s*(?:async\s+)?(?:def|class|function)\s+([A-Za-z_$][\w$]*)")
+
+
+def _enclosing(lines: list, at: int) -> set:
+    """The functions and classes line `at` is inside, by indentation: each
+    definition above it less indented than the line, out to the file's."""
+    out = set()
+    if not 0 <= at < len(lines):
+        return out
+    line = lines[at]
+    depth = len(line) - len(line.lstrip()) if line.strip() else 10 ** 6
+    for above in reversed(lines[:at + 1]):
+        if not above.strip():
+            continue
+        indent = len(above) - len(above.lstrip())
+        found = DEFINED.match(above)
+        if found and (indent < depth or above is line):
+            out.add(found.group(1))
+            depth = indent
+        elif indent < depth:
+            depth = indent
+        if depth == 0:
+            break
     return out
 
 
@@ -972,7 +1017,7 @@ def change(statement: str, held, subject, key=None,
     # a data file's names are its keys, every one of them a word the
     # statement may say: one change, as asked (a second pass put in
     # `server.server.port`)
-    while passes < PASSES and named - done and not is_data(first["file"]):
+    while passes < PASSES and named - done and not is_data(first["file"])             and not _short(PASS_SECONDS):
         more = _change_once(statement, held, subject, key,
                             need=named - done, context=context, spans=spans)
         if more["status"] != "changed":
@@ -1241,6 +1286,10 @@ def _change_once(statement: str, held, subject, key=None,
     rounds = VERIFIED_ROUNDS if (context or {}).get("verify") else ROUNDS
     ahead: list = []
     for round_ in range(rounds):
+        if round_ and _short(ROUND_SECONDS):
+            # no time left in the turn for another round: what was written
+            # is what is chosen from
+            break
         # each request sampled by a seed of its own and the round's, as the
         # writers are (`sketcher.proposals`): asked again, the same answers
         # a fix from a run seen inside: the editor taught to fix from what

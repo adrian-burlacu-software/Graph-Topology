@@ -528,6 +528,46 @@ class RequestedTests(unittest.TestCase):
         self.assertIn("count_by does not take 2", requested._defines(
             right.replace("author, year=None", "author"), asked))
 
+    def test_what_code_gives_is_read_past_what_it_prints(self):
+        import tempfile
+        from pathlib import Path
+        from research.v698 import requested
+        root = Path(tempfile.mkdtemp())
+        (root / "m.py").write_text("print(42)\ndef f(x):\n    print(7)\n"
+                                   "    return x * 2\n", encoding="utf-8")
+        self.assertEqual(requested._gives(root, ["f(3)", "g(1)"], "m"),
+                         ("6", "NameError"))
+
+    def test_a_turn_knows_the_time_it_has_left(self):
+        import threading
+        from research.v697 import page
+        found = {}
+
+        def turn():
+            found["before"] = page.left()
+            page.said_as_typed("make it faster")
+            found["in"] = page.left()
+        one = threading.Thread(target=turn)
+        one.start()
+        one.join()
+        self.assertIsNone(found["before"])
+        self.assertTrue(page.TURN_SECONDS - 5 < found["in"] <=
+                        page.TURN_SECONDS)
+
+    def test_a_change_of_a_body_changes_its_function(self):
+        from research.v700.fixing import _changed_names, _enclosing
+        # `return text[::-1]` for `pass` names nothing on its lines, and
+        # changes `reverse`
+        self.assertIn("reverse", _changed_names(
+            "def reverse(text):\n    pass\n",
+            "def reverse(text):\n    return text[::-1]\n"))
+        lines = ["class Shelf:", "    def count(self):", "        if x:",
+                 "            y = 1", "    def add(self):", "        pass",
+                 "def load():", "    return 2"]
+        self.assertEqual(_enclosing(lines, 3), {"Shelf", "count"})
+        self.assertEqual(_enclosing(lines, 5), {"Shelf", "add"})
+        self.assertEqual(_enclosing(lines, 7), {"load"})
+
     def test_the_errors_a_request_writes_out_are_asked(self):
         from research.v698 import requested
         statement = ("Raise a `ValueError` with a meaningful message:\n\n"

@@ -44,6 +44,9 @@ DOINGS = ("change", "make", "run", "teach", "goal")
 #: data said in a message: before code pasted (a JSON object reads as a
 #: TypeScript one)
 PASTED_DATA = 212.5
+#: the seconds a turn must have left to ask the code model for a change
+#: written whole (20 to 60 s of it)
+LONG = 150
 #: what is asked of the computer (v702): a command given, a task a command
 #: does, yes or no to one shown -- before code talk (`run ls` is no
 #: function's call) and data talk
@@ -488,10 +491,12 @@ def _act(read, text: str, session, memory) -> dict | None:
                         # run, ten rounds passed a turn's 300 s
                         # the change written whole by the code model too,
                         # beside the editors' lines: the tests choose
+                        # (not begun where the turn has not the time left to
+                        # write it: v697 `left`)
                         try:
                             more = requested.rewritten(
                                 stated, held, path_, subject.name
-                                if subject.kind == "function" else None)
+                                if subject.kind == "function" else None)                                 if (v697_page.left() or LONG) >= LONG else []
                         except Exception:       # noqa: BLE001
                             more = []
                         # (one round beside the code model's: three rounds
@@ -768,20 +773,21 @@ def replies(session) -> list:
     def typed(memory) -> str:
         return v697_page._typed(memory)
 
-    def pastes(memory) -> bool:
-        text = typed(memory)
-        if asking.pasted(text) is None:
-            return False
-        # code in a request to change or make what the project has, by name
-        # (an exercise's instructions and examples, then `modify the
-        # supplied files: accumulate.py`): what the request is of, not code
-        # given to be read
+    def of_the_project(memory) -> bool:
+        """Whether a message asks to change or make what the project has,
+        by name: code or data in it (an exercise's instructions, its
+        examples, then `modify the supplied files: accumulate.py`) is what
+        the request is of, not given to be read."""
         key = _key(session)
         if Pj.project(key) is None or not reading.taught():
-            return True
-        read = reading.code_talk(text, known(key))
-        return read is None or read.act not in ("change", "make") or \
-            read.subject not in reading.NAMED
+            return False
+        read = reading.code_talk(typed(memory), known(key))
+        return read is not None and read.act in ("change", "make") and \
+            read.subject in reading.NAMED
+
+    def pastes(memory) -> bool:
+        return asking.pasted(typed(memory)) is not None and \
+            not of_the_project(memory)
 
     def explain(memory):
         text = typed(memory)
@@ -807,7 +813,10 @@ def replies(session) -> list:
     from research.v701 import pasting, querying
 
     def says_data(memory) -> bool:
-        return pasting.found(typed(memory)) is not None
+        # (Exercism's `rest-api`: its JSON held as pasted data, the change
+        # it asks never made)
+        return pasting.found(typed(memory)) is not None and \
+            not of_the_project(memory)
 
     def hold_data(memory):
         text = typed(memory)

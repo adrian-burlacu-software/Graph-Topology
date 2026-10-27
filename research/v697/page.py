@@ -28,8 +28,24 @@ _TYPED = threading.local()
 
 def said_as_typed(text: str | None) -> None:
     """What the page was sent, for the turn about to be said on this
-    thread (v697's server sets it before each turn)."""
+    thread (v697's server sets it before each turn) -- and when."""
+    import time
     _TYPED.text = text
+    _TYPED.started = time.time()
+
+
+#: how long a turn may take: what the editor and the tests wait for a reply
+TURN_SECONDS = 300
+
+
+def left() -> float | None:
+    """The seconds left of this thread's turn, or None outside one: work
+    that cannot be done in them is not begun (a turn past its time had its
+    reply waited for by no one, and the next turn waited on it)."""
+    import time
+    started = getattr(_TYPED, "started", None)
+    return None if started is None else \
+        TURN_SECONDS - (time.time() - started)
 
 
 def _typed(memory) -> str:
