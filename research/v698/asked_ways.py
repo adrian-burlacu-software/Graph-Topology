@@ -57,12 +57,9 @@ def _rows(part: str) -> list:
             out.append((" ".join(row["words"]), list(row["ways"])))
     # requests asked again without the way their seed named (or in the
     # other language): the task is not the way (`teach_code_talk.contrast`)
-    # and sentences of instructions and documentation: what is described
-    # is not asked (`teach_code_talk.described_jobs`)
-    for name in ("ways-contrast.jsonl", "ways-described.jsonl"):
-        if not (DATA / name).exists():
-            continue
-        for row in map(json.loads, (DATA / name).open(encoding="utf-8")):
+    contrast = DATA / "ways-contrast.jsonl"
+    if contrast.exists():
+        for row in map(json.loads, contrast.open(encoding="utf-8")):
             if row["held"] == (part == "valid"):
                 out.append((row["text"], list(row["ways"])))
     return out
