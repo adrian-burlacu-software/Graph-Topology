@@ -344,6 +344,46 @@ class DebugTalkTests(unittest.TestCase):
         self.assertEqual(found["status"], "unplaced")
 
 
+class _Process:
+    def __init__(self, code):
+        self.code = code
+
+    def wait(self):
+        return self.code
+
+
+class AgainTests(unittest.TestCase):
+    """A server the loop started is started again where its card was lost
+    (v698 `server.RESTART`), as the editor starts it again."""
+
+    def test_a_lost_card_is_started_again(self):
+        from research.v698.server import RESTART
+        from research.v705 import loop
+        codes = [RESTART, 1]
+        spawned = []
+
+        def spawn():
+            spawned.append(1)
+            return _Process(codes.pop(0))
+        before, loop.AGAIN_AFTER = loop.AGAIN_AFTER, 0
+        try:
+            self.assertEqual(loop._again(spawn, wait=True), 1)
+        finally:
+            loop.AGAIN_AFTER = before
+        self.assertEqual(len(spawned), 2)
+
+    def test_one_stopped_at_once_stays_stopped(self):
+        from research.v698.server import RESTART
+        from research.v705 import loop
+        spawned = []
+
+        def spawn():
+            spawned.append(1)
+            return _Process(RESTART)
+        self.assertEqual(loop._again(spawn, wait=True), RESTART)
+        self.assertEqual(len(spawned), 1)
+
+
 class MeasureTests(unittest.TestCase):
     """A goal about its replies (`measures`): the changes made by
     construction, and what a reply is made from."""

@@ -283,8 +283,51 @@ def _post(url: str, path: str, body: dict) -> dict:
         return json.loads(reply.read())
 
 
+def _lost(bad: BaseException) -> bool:
+    """Whether a turn failed because its server went: the server's own
+    word that its card is lost and it stops (v698 `server.RESTART`), or no
+    server there to say it to. A turn that took too long is not."""
+    if isinstance(bad, urllib.error.HTTPError):
+        return bad.code == 500 and "restart" in getattr(bad, "body", {})
+    return isinstance(getattr(bad, "reason", bad), ConnectionError)
+
+
+#: how long a server lost mid-run is waited for to be started again (v705
+#: `loop._again`): its models loaded again
+BACK_SECONDS = 900
+#: the servers waited for in vain: not waited for again
+_GONE: set = set()
+
+
+def _back(url: str) -> bool:
+    """Whether the server is up again, waited for once."""
+    if url in _GONE:
+        return False
+    until = time.time() + BACK_SECONDS
+    while time.time() < until:
+        try:
+            with urllib.request.urlopen(f"{url}/api/health", timeout=5):
+                return True
+        except (urllib.error.URLError, OSError):
+            time.sleep(10)
+    _GONE.add(url)
+    return False
+
+
 def converse(number_: int, item, url: str, run_id: str) -> dict:
-    sid = f"v704-{run_id}-{number_}"
+    """A conversation said and scored; said again, whole and once, where
+    its server went in the middle and is back (2026-10-28: a CUDA fault,
+    and 21 conversations after it were scored wrong, said to no server)."""
+    out = _conversed(number_, item, url, f"v704-{run_id}-{number_}")
+    if out.pop("lost", False) and _back(url):
+        out = {**_conversed(number_, item, url,
+                            f"v704-{run_id}-{number_}-again"),
+               "again": out.get("why")}
+        out.pop("lost", None)
+    return out
+
+
+def _conversed(number_: int, item, url: str, sid: str) -> dict:
     root = None
     fixture = FIXTURE.parent / getattr(item, "fixture", "library")
     out = {"n": number_, "area": item.area, "turns": item.turns,
@@ -335,10 +378,16 @@ def converse(number_: int, item, url: str, run_id: str) -> dict:
                                 or [])[:2],
                        "taken": (turn.get("reading") or {}).get("act")}
     except urllib.error.HTTPError as bad:
-        out.update(verdict="wrong", why=f"server {bad.code}: "
-                   f"{bad.read().decode(errors='replace')[:300]}")
+        text = bad.read().decode(errors="replace")
+        try:
+            bad.body = json.loads(text)
+        except ValueError:
+            bad.body = {}
+        out.update(verdict="wrong", why=f"server {bad.code}: {text[:300]}",
+                   lost=_lost(bad))
     except Exception as bad:                    # noqa: BLE001
-        out.update(verdict="wrong", why=f"{type(bad).__name__}: {bad}")
+        out.update(verdict="wrong", why=f"{type(bad).__name__}: {bad}",
+                   lost=_lost(bad))
     finally:
         if root is not None:
             shutil.rmtree(root.parent, ignore_errors=True)

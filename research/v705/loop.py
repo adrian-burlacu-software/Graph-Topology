@@ -145,30 +145,65 @@ def _stop() -> None:
         time.sleep(2)
 
 
+def _spawn(at: int, count: int):
+    """The `at`th of `count` servers started: its process."""
+    import os
+    log = ROOT / "state" / ("v705-loop-server.log" if at == 0 else
+                            f"v705-loop-server{at}.log")
+    environment = dict(os.environ)
+    if count > 1:
+        environment["V705_PAGING_BUDGET"] = str(
+            PARTS[min(at, len(PARTS) - 1)])
+        environment["V705_CARD_FRACTION"] = str(
+            FRACTIONS[min(at, len(FRACTIONS) - 1)])
+    with log.open("ab") as out:
+        out.write(f"\n== started {time.strftime('%Y-%m-%d %H:%M:%S')} "
+                  f"by the loop\n".encode())
+        return subprocess.Popen(
+            [sys.executable, "-m", "research.v698", "--workers",
+             str(19 if count == 1 else ENGINES), "--port",
+             str(PORT + at)], cwd=ROOT, env=environment,
+            stdin=subprocess.DEVNULL, stdout=out, stderr=out,
+            creationflags=getattr(subprocess,
+                                  "CREATE_NEW_PROCESS_GROUP", 0))
+
+
+#: a server stopped with v698's `RESTART` is started again only where it
+#: ran this long: one that stops so at once would stop so again
+AGAIN_AFTER = 60
+
+
+def _again(spawn, wait: bool = False):
+    """A server started, and started again each time it stops with v698
+    `server.RESTART` (a CUDA fault lost its card) after running a minute
+    -- as the editor's extension does (`lib.startsAgain`). Without it,
+    2026-10-28, a fault 70 conversations into CanItEdit left the rest said
+    to no server: 21 recorded wrong. Stopped any other way (`_stop`), it
+    stays stopped. `wait`: watched here, not on a thread of its own."""
+    import threading
+    from research.v698.server import RESTART
+    first = spawn()
+
+    def watch():
+        process = first
+        while True:
+            started = time.time()
+            code = process.wait()
+            if code != RESTART or time.time() - started < AGAIN_AFTER:
+                return code
+            process = spawn()
+    if wait:
+        return watch()
+    threading.Thread(target=watch, daemon=True).start()
+    return None
+
+
 def _start(count: int = 1) -> list:
     """The server -- or `count` of them, each a part of the card -- started
     on the code as it is on disk, waited for: their urls."""
-    import os
     urls = []
     for at in range(count):
-        log = ROOT / "state" / ("v705-loop-server.log" if at == 0 else
-                                f"v705-loop-server{at}.log")
-        environment = dict(os.environ)
-        if count > 1:
-            environment["V705_PAGING_BUDGET"] = str(
-                PARTS[min(at, len(PARTS) - 1)])
-            environment["V705_CARD_FRACTION"] = str(
-                FRACTIONS[min(at, len(FRACTIONS) - 1)])
-        with log.open("ab") as out:
-            out.write(f"\n== started {time.strftime('%Y-%m-%d %H:%M:%S')} "
-                      f"by the loop\n".encode())
-            subprocess.Popen(
-                [sys.executable, "-m", "research.v698", "--workers",
-                 str(19 if count == 1 else ENGINES), "--port",
-                 str(PORT + at)], cwd=ROOT, env=environment,
-                stdin=subprocess.DEVNULL, stdout=out, stderr=out,
-                creationflags=getattr(subprocess,
-                                      "CREATE_NEW_PROCESS_GROUP", 0))
+        _again(lambda at=at: _spawn(at, count))
         urls.append(f"http://127.0.0.1:{PORT + at}")
     until = time.time() + STARTUP
     while not all(_up(url) for url in urls):

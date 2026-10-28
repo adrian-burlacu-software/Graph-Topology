@@ -181,9 +181,12 @@ class Handler(v697.Handler):
             import traceback
             traceback.print_exc()
             if wedged(bad):
+                # `restart`: whoever started it starts it again (the
+                # editor's extension, the loop) and says the turn again
                 self._json({"error": f"{type(bad).__name__}: {bad} -- the "
                                      f"card is lost to this process: it "
-                                     f"stops, to be started again"}, 500)
+                                     f"stops, to be started again",
+                            "restart": RESTART}, 500)
                 import os
                 print("the card's state is lost (a CUDA fault): stopping "
                       f"with {RESTART}, to be started again", flush=True)
@@ -192,7 +195,7 @@ class Handler(v697.Handler):
 
 
 #: the exit of a server whose card is lost to it: start it again (the
-#: editor's extension does)
+#: editor's extension does, and v705's loop)
 RESTART = 75
 #: what CUDA says of a fault that leaves the process's card unusable:
 #: every call after it fails the same (2026-10-27: one illegal access, and

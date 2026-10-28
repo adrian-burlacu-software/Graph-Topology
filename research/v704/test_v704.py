@@ -44,6 +44,37 @@ class ScoringTests(unittest.TestCase):
         self.assertTrue(C._same_as_fixture(C.FIXTURE))
 
 
+class LostServerTests(unittest.TestCase):
+    """A conversation whose server went in the middle is said again once
+    it is back, not scored wrong."""
+
+    def test_what_is_lost(self):
+        import io
+        import urllib.error
+        self.assertTrue(C._lost(urllib.error.URLError(
+            ConnectionRefusedError())))
+        self.assertFalse(C._lost(urllib.error.URLError(TimeoutError())))
+        said = urllib.error.HTTPError("u", 500, "x", {}, io.BytesIO())
+        said.body = {"error": "lost", "restart": 75}
+        self.assertTrue(C._lost(said))
+        said.body = {"error": "IndexError"}
+        self.assertFalse(C._lost(said))
+
+    def test_said_again_when_back(self):
+        replies = [{"n": 1, "verdict": "wrong", "why": "gone", "lost": True},
+                   {"n": 1, "verdict": "right"}]
+        conversed, back = C._conversed, C._back
+        C._conversed = lambda *args: replies.pop(0)
+        C._back = lambda url: True
+        try:
+            out = C.converse(1, None, "http://x", "run")
+        finally:
+            C._conversed, C._back = conversed, back
+        self.assertEqual(out["verdict"], "right")
+        self.assertEqual(out["again"], "gone")
+        self.assertNotIn("lost", out)
+
+
 class SelfModelTests(unittest.TestCase):
     """What it knows of itself, from a run: how each area does, the part
     that answers it, what went to another part."""
