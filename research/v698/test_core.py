@@ -828,6 +828,20 @@ class CodeTalkTests(unittest.TestCase):
             self.assertEqual(reading._ways_of(parts, ["iterative"]),
                              ["iterative", "no-loop"])
 
+    def test_a_change_not_written_as_asked_lacks_the_way(self):
+        from research.v698 import requested
+        before = "def rows(n):\n    pass\n"
+        looped = ("def rows(n):\n    out = []\n    for i in range(n):\n"
+                  "        out.append(i)\n    return out\n")
+        recursed = ("def rows(n):\n    if n == 0:\n        return []\n"
+                    "    return rows(n - 1) + [n - 1]\n")
+        self.assertEqual(requested.unwritten(looped, before,
+                                             ["recursive"]), ["recursive"])
+        self.assertEqual(requested.unwritten(recursed, before,
+                                             ["recursive", "no-loop"]), [])
+        # the language is what it is written in, not a way it is written
+        self.assertEqual(requested.unwritten(looped, before, ["python"]), [])
+
     def test_a_doing_sure_together_is_code_talk(self):
         from unittest import mock
         from research.v698 import reading

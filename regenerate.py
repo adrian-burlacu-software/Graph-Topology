@@ -1687,6 +1687,22 @@ def steps() -> list[Step]:
                           "about 1000 when made"),
              needs=("code-talk", "ways-estimator9", "smollm3"),
              cost="twenty minutes", gpu=True),
+        # what each part of a long message is (v698 `roles.py`): taught the
+        # parts of never-measured Exercism docs labelled by hand (in the
+        # repo), and the teacher's requirements and tips of each way
+        Step("roles-reader", "the role of each part of a long message -- "
+                             "asks, how, a tip, what the code does, the "
+                             "problem, an explanation, an example, layout "
+                             "-- the ways read of the parts that say how",
+             lambda: (_run("research.v698.roles", "write"),
+                      _run("research.v698.roles", "check"),
+                      _run("research.v698.roles", "tune"),
+                      _run("research.v698.roles", "measure")),
+             lambda: (f"floor {json.loads((LLM / 'roles-reader' / 'roles.json').read_text(encoding='utf-8'))['floor']}"
+                      if (LLM / "roles-reader" / "roles.json").exists()
+                      else None),
+             needs=("code-talk", "meaning-bilingual", "smollm3"),
+             cost="forty minutes", gpu=True),
         Step("reader-claims", "claims said against each other (`so cats "
                               "don't swim, but this cat swam?`), read and "
                               "placed by the rules: a comma before them is "

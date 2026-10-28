@@ -427,8 +427,19 @@ def _act(read, text: str, session, memory) -> dict | None:
                         rf"(?<!\w){re.escape(subject.name.split('.')[-1])}"
                         rf"(?!\w)", text) else \
                         f"{subject.name.split('.')[-1]}: {text}"
+                    # how the request asks the code written (`reading`: the
+                    # asking part's ways, and its parts' that say how --
+                    # `designed to be completed using recursion`), said to
+                    # what writes the change and weighed as what the request
+                    # writes out is; the tests stay of what was asked
+                    from research.v698 import ways as W
+                    asked_ways = W.held(read.ways, "python")
+                    writing = (f"{stated}\n\nWrite it "
+                               f"{W.said(asked_ways, 'python')}."
+                               if asked_ways else stated)
                     check = requested.checker(
-                        stated, held, path_, keeps=read.aspect == "same")
+                        stated, held, path_, keeps=read.aspect == "same",
+                        ways=asked_ways)
                     # a name made another everywhere it is used, where
                     # the request's tests hold for it (`rename
                     # parse_isbn to clean_isbn everywhere`: two lines of
@@ -495,7 +506,7 @@ def _act(read, text: str, session, memory) -> dict | None:
                         # write it: v697 `left`)
                         try:
                             more = requested.rewritten(
-                                stated, held, path_, subject.name
+                                writing, held, path_, subject.name
                                 if subject.kind == "function" else None)                                 if (v697_page.left() or LONG) >= LONG else []
                         except Exception:       # noqa: BLE001
                             more = []
@@ -512,6 +523,8 @@ def _act(read, text: str, session, memory) -> dict | None:
                                    "requested": {
                                        "kept": check["kept"],
                                        "need": check["need"]}}
+                        if asked_ways:
+                            context["said"] = writing
                 try:
                     made = fixing.change(text, held, subject, key,
                                          spans=read.spans, context=context)

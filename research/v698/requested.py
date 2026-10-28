@@ -640,12 +640,54 @@ def _lacking(text: str, asked: dict) -> list:
     return out
 
 
-def checker(statement: str, held, path: str, keeps: bool = False) -> dict:
+def _changed_functions(changed: str, before: str) -> list:
+    """The names of the functions a change wrote other than they were."""
+    import ast
+
+    def bodies(text):
+        try:
+            tree = ast.parse(text)
+        except SyntaxError:
+            return {}
+        return {node.name: ast.dump(node) for node in ast.walk(tree)
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))}
+    old = bodies(before)
+    return [name for name, body in bodies(changed).items()
+            if old.get(name) != body]
+
+
+def unwritten(changed: str, before: str, ways, language: str = "python"
+              ) -> list:
+    """The ways asked (`ways.py`) that no function the change wrote is
+    written: `recursively`, where every function it changed loops."""
+    from research.v696.checker import CheckerError
+    from research.v696.checker import checker as compiler
+    from research.v698 import ways as W
+    asked = W.held(ways, language)
+    names = _changed_functions(changed, before)
+    if not asked or not names:
+        return []
+    shapes = []
+    for name in names:
+        try:
+            shapes.append((compiler(language).shape(changed, name),
+                           compiler(language).shape(before, name)))
+        except CheckerError:
+            continue
+    return [way for way in asked if not any(
+        shape is not None and not W.missing(shape, [way], old)
+        for shape, old in shapes)]
+
+
+def checker(statement: str, held, path: str, keeps: bool = False,
+            ways=()) -> dict:
     """The check of a change of `path`: {verify, tests, kept, own} --
     `verify(changed text)` says '' where the change holds, else why; None
     where no test tells the project as it is from a change. `keeps`: the
     change keeps what the code gives (the reader's aspect `same`) -- the
-    code as it is the oracle, on calls that use it well."""
+    code as it is the oracle, on calls that use it well. `ways`: how the
+    request asks the code written (`reading.ways`), weighed as what it
+    writes out is (`lacks`)."""
     if not path.endswith(".py") or path not in held.files:
         return {"verify": None, "why": "not Python"}
     try:
@@ -730,8 +772,12 @@ def checker(statement: str, held, path: str, keeps: bool = False) -> dict:
         """What of what the request writes out the code will have
         (`interface`) a change lacks: no change asked where another change
         has it -- a name no change has was a word of the request ("raise an
-        `exception`"), not code asked."""
-        return _lacking(changed, asked) + _unraised(changed, messages)
+        `exception`"), not code asked -- nor a way no change is written
+        (a way read of a problem that names it: `Creating a zipper`)."""
+        from research.v698 import ways as W
+        return _lacking(changed, asked) + _unraised(changed, messages) + [
+            f"it is not written {W.said([way], 'python')}"
+            for way in unwritten(changed, held.files[path], ways)]
 
     def verify_files(changes: dict, least: int | None = None) -> str:
         """'' where the project, these files so changed, holds: its own
