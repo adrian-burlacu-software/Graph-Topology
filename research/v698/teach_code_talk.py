@@ -1724,14 +1724,10 @@ def contrast_check(batch: int = 24) -> dict:
     """Each message kept where the teacher, asked outright of each family
     the seed names, reads it as written: nothing of a plain request, the
     other language of one said in it."""
-    return _checked(CONTRAST_WRITTEN, CONTRAST, batch)
-
-
-def _checked(written: Path, path: Path, batch: int) -> dict:
     from research.v696.teach_meaning import Teacher
     from research.v698.ways import WAYS
     todo, seen = [], set()
-    for row in map(json.loads, written.open(encoding="utf-8")):
+    for row in map(json.loads, CONTRAST_WRITTEN.open(encoding="utf-8")):
         meta = row["meta"]
         for line in row["lines"]:
             said = " ".join(words(line))
@@ -1739,7 +1735,7 @@ def _checked(written: Path, path: Path, batch: int) -> dict:
                 continue
             seen.add(said)
             todo.append((said, meta["ways"], meta["checked"]))
-    print(f"{len(todo)} messages to check", flush=True)
+    print(f"{len(todo)} contrast messages to check", flush=True)
     teacher = Teacher()
     # the language asked of every one: a plain request that says `in
     # python` is not plain (`can you write a function to reverse a string in
@@ -1763,7 +1759,7 @@ def _checked(written: Path, path: Path, batch: int) -> dict:
             picked = _picked(reply[0], options)
             agreed[at] = agreed.get(at, True) and picked == wanted
     kept = 0
-    with path.open("w", encoding="utf-8") as out:
+    with CONTRAST.open("w", encoding="utf-8") as out:
         for at, (said, ways, _) in enumerate(todo):
             if agreed.get(at):
                 kept += 1
@@ -1773,111 +1769,12 @@ def _checked(written: Path, path: Path, batch: int) -> dict:
     return {"kept": kept, "checked": len(todo)}
 
 
-# -- what is described, apart from what is asked -----------------------------
-#
-# A long request is read by its parts (`reading._parts`): an exercise's
-# instructions, its notes, `This exercise is designed to be completed using
-# recursion, rather than loops.` Taught only requests and everyday messages,
-# the ways estimator read the instructions' descriptions as asked: `Creating
-# a zipper for a binary tree.` as zip, `To raise a ValueError with a
-# message, write the message as an argument` as spread, a heading's `####`
-# as TypeScript. Sentences in the voice of instructions and documentation
-# are written of each family -- naming what its ways name, asking nothing --
-# and of each way, said as what the solution must be; and the lines a
-# document's layout leaves. Checked as the contrast set is, taught beside it.
-
-DESCRIBED_WRITTEN = DATA / "ways-described-written.jsonl"
-DESCRIBED = DATA / "ways-described.jsonl"
-#: what each family's ways name, as a description would mention it
-MENTIONS = {
-    "branch": "a choice between cases, conditions, or what happens if "
-              "something is true",
-    "recursion": "recursion, trees, nested lists, or something defined in "
-                 "terms of itself",
-    "loop": "repetition, cycles, rounds of a game, or a loop",
-    "map": "mapping one thing to another, a map, or a dictionary of names",
-    "filter": "filtering, a filter, or keeping only some items",
-    "reduce": "folding, accumulating, or combining items into one",
-    "forEach": "doing something for each item of a list",
-    "regex": "patterns in text, matching, or searching lines",
-    "set": "a set, sets of things, or collections without duplicates",
-    "async": "waiting, concurrency, or work done in parallel",
-    "form": "functions, classes, objects, or arrows in a diagram",
-    "length": "lines, length, or how long or short something is",
-    "template": "templates, strings, or text with blanks filled in",
-    "spread": "arguments of a function, raising an error with a message, "
-              "or spreading things out",
-    "destructuring": "unpacking, records with fields, or taking something "
-                     "apart",
-    "const": "constants, or values that never change",
-    "comprehension": "lists built from other lists",
-    "generator": "producing values one at a time, or a sequence",
-    "enumerate": "numbering items, positions, or counting",
-    "zip": "pairing things up, a zipper, or two lists side by side",
-    "annotations": "types of values, or default values of parameters",
-    "with": "opening files, resources, or cleaning up afterwards",
-    "decorator": "decorating, wrapping, or adding behaviour around "
-                 "something",
-}
-#: a description's voice: an exercise's instructions, its notes, a
-#: library's documentation
-VOICES = ("the instructions of a programming exercise, describing the "
-          "problem and its data",
-          "a programming tutorial or a library's documentation, explaining "
-          "a concept")
-
-
-def described_jobs() -> list:
-    from research.v698.ways import WAYS
-    out = []
-    for family, mention in MENTIONS.items():
-        for at, voice in enumerate(VOICES):
-            out.append((f"described|none|{family}|{at}", f"Write 12 "
-                        f"different sentences as found in {voice}, each one "
-                        f"mentioning {mention}, and none of them saying "
-                        f"anything about how the solution's code is to be "
-                        f"written. " + STYLE,
-                        {"ways": [], "checked": [family]}))
-    for way, (family, said, _) in WAYS.items():
-        if family in (None, "language", "length"):
-            continue
-        out.append((f"described|{way}", f"Write 12 different sentences as "
-                    f"found in the instructions or notes of a programming "
-                    f"exercise, each one saying that the solution is to be "
-                    f"written {said}: as a requirement, a constraint, or "
-                    f"what the exercise is designed to practise. " + STYLE,
-                    {"ways": [way], "checked": [family]}))
-    out.append(("described|layout", "Write 30 different lines as left over "
-                "when a markdown document about programming is cut into "
-                "lines: heading marks alone, table rules, short labels "
-                "ending in a colon, link references such as `[name]:`, "
-                "URLs of documentation pages, numbers alone. One per line, "
-                "nothing else.", {"ways": [], "checked": []}))
-    return out
-
-
-def described_write(samples: int = 2) -> None:
-    DATA.mkdir(parents=True, exist_ok=True)
-    todo = [one for one in described_jobs()
-            if one[0] not in _done(DESCRIBED_WRITTEN)]
-    print(f"{len(todo)} described jobs to write", flush=True)
-    _write(todo, DESCRIBED_WRITTEN, samples, batch=6)
-
-
-def described_check(batch: int = 24) -> dict:
-    """As `contrast_check`: each sentence kept where the teacher, asked of
-    its family and of the language, reads it as written."""
-    return _checked(DESCRIBED_WRITTEN, DESCRIBED, batch)
-
-
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("job", choices=("lists", "write", "check",
                                         "check-ways", "corpus",
                                         "held-write", "held-check",
-                                        "contrast-write", "contrast-check",
-                                        "described-write",
-                                        "described-check"))
+                                        "contrast-write", "contrast-check"))
     parser.add_argument("--samples", type=int, default=2)
     args = parser.parse_args(argv)
     if args.job == "lists":
@@ -1896,10 +1793,6 @@ def main(argv=None) -> int:
         contrast_write(samples=args.samples)
     elif args.job == "contrast-check":
         print(contrast_check())
-    elif args.job == "described-write":
-        described_write(samples=args.samples)
-    elif args.job == "described-check":
-        print(described_check())
     else:
         corpus()
     return 0
