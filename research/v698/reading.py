@@ -138,11 +138,13 @@ def read(text: str, known=()) -> Reading | None:
     said = words(text)
     if not said:
         return None
+    parts = None
     if not encoder.whole(said):
         # longer than the encoder reads (an exercise's instructions, its
         # examples, then `modify the supplied files: accumulate.py`): read
         # by its parts, the one that asks something done taken as what is
         # asked -- the rest is what it is asked of
+        parts = _parts(text)
         part = _asking(text, known)
         if part is not None:
             text, said = part, words(part)
@@ -166,6 +168,8 @@ def read(text: str, known=()) -> Reading | None:
         from research.v698 import asked_ways
         # as it was taught: the words, lower case, as the reader reads them
         ways = [one for one, _ in asked_ways.read(" ".join(said))]
+        if parts:
+            ways = _ways_of(parts, ways)
     return Reading(act, chance, aspect, aspect_chance, subject, said, roles,
                    _spans(typed, roles), found["code_act"],
                    [word for word, tag in zip(typed, tags) if tag], ways)
@@ -196,6 +200,32 @@ def _parts(text: str) -> list:
         else:
             out += [one.strip() for one in
                     re.split(r"(?<=[.!?:])\s+|\n", paragraph) if one.strip()]
+    return out
+
+
+def _ways_of(parts: list, asked: list) -> list:
+    """The ways a long message asks for: the asking part's, and those of
+    each part read as saying how the solution's code is to be written
+    (`roles.py`: `This exercise is designed to be completed using
+    recursion, rather than loops.`) -- not of the problem, which names
+    what ways name (`Creating a zipper ...`), an explanation, or a tip
+    (`You can use enumerate()`). Of a family, the asking part's way, else
+    the one read surest."""
+    from research.v692.corpus import words
+    from research.v698 import asked_ways, roles
+    from research.v698.ways import WAYS
+    said = [" ".join(words(part)) for part in parts]
+    surest: dict = {}
+    for text, role in zip(said, roles.roles(said)):
+        if role != "how":
+            continue
+        for way, chance in asked_ways.read(text):
+            family = WAYS[way][0]
+            if family not in surest or chance > surest[family][1]:
+                surest[family] = (way, chance)
+    out = list(asked)
+    taken = {WAYS[way][0] for way in out}
+    out += [way for way, _ in surest.values() if WAYS[way][0] not in taken]
     return out
 
 
