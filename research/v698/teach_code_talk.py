@@ -1773,24 +1773,21 @@ def _checked(written: Path, path: Path, batch: int) -> dict:
     return {"kept": kept, "checked": len(todo)}
 
 
-# -- what is required of the code, apart from what is described --------------
+# -- what is described, apart from what is asked -----------------------------
 #
 # A long request is read by its parts (`reading._parts`): an exercise's
 # instructions, its notes, `This exercise is designed to be completed using
-# recursion, rather than loops.` The ways estimator, read of every part,
-# read the problem as asked: `Creating a zipper for a binary tree.` as zip,
-# list-ops' `filter (given a predicate and a list ...)` as filter -- and
-# taught such sentences as asking nothing (2026-10-27, `ways-estimator10`),
-# it still read them so, in many parts of one message. What tells the two
-# apart is what a sentence does: says how the solution's code is to be
-# written, or describes the problem, a concept, what the code must do.
-# Sentences of both, in the voice of instructions and documentation, each
-# kept where the teacher reads it as written (`required_check`), teach a
-# head of its own (`required.py`); the ways are read of the parts it takes
-# as saying so.
+# recursion, rather than loops.` Taught only requests and everyday messages,
+# the ways estimator read the instructions' descriptions as asked: `Creating
+# a zipper for a binary tree.` as zip, `To raise a ValueError with a
+# message, write the message as an argument` as spread, a heading's `####`
+# as TypeScript. Sentences in the voice of instructions and documentation
+# are written of each family -- naming what its ways name, asking nothing --
+# and of each way, said as what the solution must be; and the lines a
+# document's layout leaves. Checked as the contrast set is, taught beside it.
 
-DESCRIBED_WRITTEN = DATA / "required-written.jsonl"
-REQUIRED = DATA / "required.jsonl"
+DESCRIBED_WRITTEN = DATA / "ways-described-written.jsonl"
+DESCRIBED = DATA / "ways-described.jsonl"
 #: what each family's ways name, as a description would mention it
 MENTIONS = {
     "branch": "a choice between cases, conditions, or what happens if "
@@ -1830,27 +1827,13 @@ VOICES = ("the instructions of a programming exercise, describing the "
           "a concept")
 
 
-#: what the code must do, said as instructions say it: required, but not
-#: of how it is written
-BEHAVIOURS = ("what the solution must return for some input",
-              "which error the solution must raise, and with what message, "
-              "for bad input",
-              "what the function or class must be named and which "
-              "arguments it takes",
-              "how the input is given and how the output must look")
-#: how code is to be written, said with no way `ways.py` checks
-CONSTRAINTS = ("what the solution may not use: built-in functions, "
-               "libraries, or packages",
-               "a style or construct the solution's code must be written "
-               "in, or must avoid")
-
-
 def described_jobs() -> list:
-    """(key, prompt, meta) of each set of sentences: `required` whether
-    they say how the solution's code is to be written, `ways` the ways
-    they say it with."""
     from research.v698.ways import WAYS
     out = []
+    # checked of a family by any of its ways (`_checked` asks the family)
+    first = {}
+    for way, (family, _, _) in WAYS.items():
+        first.setdefault(family, way)
     for family, mention in MENTIONS.items():
         for at, voice in enumerate(VOICES):
             out.append((f"described|none|{family}|{at}", f"Write 12 "
@@ -1858,39 +1841,22 @@ def described_jobs() -> list:
                         f"mentioning {mention}, and none of them saying "
                         f"anything about how the solution's code is to be "
                         f"written. " + STYLE,
-                        {"required": False, "ways": []}))
-    for at, what in enumerate(BEHAVIOURS):
-        out.append((f"described|does|{at}", f"Write 12 different sentences "
-                    f"as found in the instructions of a programming "
-                    f"exercise, each one saying {what} -- what the code "
-                    f"does, never how its code is to be written. " + STYLE,
-                    {"required": False, "ways": []}))
-    out.append(("described|example", "Write 12 different sentences as "
-                "found in the instructions of a programming exercise, each "
-                "one introducing or walking through an example of the "
-                "problem's input and output. " + STYLE,
-                {"required": False, "ways": []}))
+                        {"ways": [], "checked": [first[family]]}))
     for way, (family, said, _) in WAYS.items():
         if family in (None, "language", "length"):
             continue
         out.append((f"described|{way}", f"Write 12 different sentences as "
                     f"found in the instructions or notes of a programming "
                     f"exercise, each one saying that the solution is to be "
-                    f"written {said}: as a requirement, a constraint, what "
-                    f"the exercise is designed to practise, or a short "
-                    f"heading over such a note. " + STYLE,
-                    {"required": True, "ways": [way]}))
-    for at, what in enumerate(CONSTRAINTS):
-        out.append((f"described|constraint|{at}", f"Write 12 different "
-                    f"sentences as found in the instructions or notes of a "
-                    f"programming exercise, each one saying {what}. "
-                    + STYLE, {"required": True, "ways": []}))
+                    f"written {said}: as a requirement, a constraint, or "
+                    f"what the exercise is designed to practise. " + STYLE,
+                    {"ways": [way], "checked": [way]}))
     out.append(("described|layout", "Write 30 different lines as left over "
                 "when a markdown document about programming is cut into "
                 "lines: heading marks alone, table rules, short labels "
                 "ending in a colon, link references such as `[name]:`, "
                 "URLs of documentation pages, numbers alone. One per line, "
-                "nothing else.", {"required": False, "ways": []}))
+                "nothing else.", {"ways": [], "checked": []}))
     return out
 
 
@@ -1902,55 +1868,10 @@ def described_write(samples: int = 2) -> None:
     _write(todo, DESCRIBED_WRITTEN, samples, batch=6)
 
 
-REQUIRED_CHOICE = (
-    ("required", "it says how the solution's code is to be written: a "
-                 "technique, construct, style or language it must use or "
-                 "avoid"),
-    ("described", "it describes the problem, a concept, an example, or "
-                  "what the code must do -- not how its code is written"),
-    ("other", "it is a fragment, a link, a heading of nothing, or none of "
-              "these"))
-
-
-def required_check(batch: int = 24) -> dict:
-    """Each written sentence kept where the teacher, asked what it does,
-    reads it as it was written to: `required.jsonl`, {text, required,
-    ways, held}."""
-    from research.v696.teach_meaning import Teacher
-    current = {key: meta for key, _, meta in described_jobs()}
-    todo, seen = [], set()
-    for row in map(json.loads, DESCRIBED_WRITTEN.open(encoding="utf-8")):
-        meta = current.get(row["key"])
-        if meta is None:
-            continue
-        for line in row["lines"]:
-            said = " ".join(words(line))
-            if not said or said in seen or _code_not_words(line):
-                continue
-            seen.add(said)
-            todo.append((said, meta))
-    print(f"{len(todo)} sentences to check", flush=True)
-    teacher = Teacher()
-    kept = 0
-    with REQUIRED.open("w", encoding="utf-8") as out:
-        for at in range(0, len(todo), batch):
-            chunk = todo[at:at + batch]
-            asked = [_choice(said, list(REQUIRED_CHOICE), "What does this "
-                             "sentence do?") for said, _ in chunk]
-            replies = teacher.write(asked, longest=3)
-            for (said, meta), reply in zip(chunk, replies):
-                picked = _picked(reply[0], list(REQUIRED_CHOICE))
-                if picked is None or (picked == "required") != \
-                        meta["required"]:
-                    continue
-                kept += 1
-                out.write(json.dumps({"text": said,
-                                      "required": meta["required"],
-                                      "ways": meta["ways"],
-                                      "held": _held(said)}) + "\n")
-            print(f"  {min(at + batch, len(todo))}/{len(todo)}: kept "
-                  f"{kept}", flush=True)
-    return {"kept": kept, "checked": len(todo)}
+def described_check(batch: int = 24) -> dict:
+    """As `contrast_check`: each sentence kept where the teacher, asked of
+    its family and of the language, reads it as written."""
+    return _checked(DESCRIBED_WRITTEN, DESCRIBED, batch)
 
 
 def main(argv=None) -> int:
@@ -1960,7 +1881,7 @@ def main(argv=None) -> int:
                                         "held-write", "held-check",
                                         "contrast-write", "contrast-check",
                                         "described-write",
-                                        "required-check"))
+                                        "described-check"))
     parser.add_argument("--samples", type=int, default=2)
     args = parser.parse_args(argv)
     if args.job == "lists":
@@ -1981,8 +1902,8 @@ def main(argv=None) -> int:
         print(contrast_check())
     elif args.job == "described-write":
         described_write(samples=args.samples)
-    elif args.job == "required-check":
-        print(required_check())
+    elif args.job == "described-check":
+        print(described_check())
     else:
         corpus()
     return 0
