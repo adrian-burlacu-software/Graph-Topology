@@ -804,6 +804,30 @@ class CodeTalkTests(unittest.TestCase):
         self.assertIn(read.subject, reading.NAMED)
         self.assertIn("squares.py", read.spans.get("SUBJ", []))
 
+    def test_a_long_requests_ways_are_of_its_parts_that_say_how(self):
+        from unittest import mock
+        from research.v698 import asked_ways, reading, roles
+        # the problem names a zipper, a tip names enumerate: only the part
+        # that says how the code is to be written holds it to a way
+        parts = ["Creating a zipper for a binary tree.",
+                 "You can use enumerate() to get the index.",
+                 "This exercise is designed to be completed using "
+                 "recursion, rather than loops."]
+        role = {"creating": "describes", "you": "suggests",
+                "this": "how"}
+        read = {"creating": [("zip", 0.99)],
+                "you": [("enumerate", 0.98)],
+                "this": [("recursive", 0.99), ("no-loop", 1.0)]}
+        with mock.patch.object(roles, "roles", lambda texts: [
+                role[text.split()[0]] for text in texts]), \
+                mock.patch.object(asked_ways, "read", lambda text: read[
+                    text.split()[0]]):
+            self.assertEqual(sorted(reading._ways_of(parts, ["python"])),
+                             ["no-loop", "python", "recursive"])
+            # the asking part's way of a family stands
+            self.assertEqual(reading._ways_of(parts, ["iterative"]),
+                             ["iterative", "no-loop"])
+
     def test_a_doing_sure_together_is_code_talk(self):
         from unittest import mock
         from research.v698 import reading
