@@ -1830,10 +1830,6 @@ VOICES = ("the instructions of a programming exercise, describing the "
 def described_jobs() -> list:
     from research.v698.ways import WAYS
     out = []
-    # checked of a family by any of its ways (`_checked` asks the family)
-    first = {}
-    for way, (family, _, _) in WAYS.items():
-        first.setdefault(family, way)
     for family, mention in MENTIONS.items():
         for at, voice in enumerate(VOICES):
             out.append((f"described|none|{family}|{at}", f"Write 12 "
@@ -1841,7 +1837,7 @@ def described_jobs() -> list:
                         f"mentioning {mention}, and none of them saying "
                         f"anything about how the solution's code is to be "
                         f"written. " + STYLE,
-                        {"ways": [], "checked": [first[family]]}))
+                        {"ways": [], "checked": [family]}))
     for way, (family, said, _) in WAYS.items():
         if family in (None, "language", "length"):
             continue
@@ -1850,7 +1846,7 @@ def described_jobs() -> list:
                     f"exercise, each one saying that the solution is to be "
                     f"written {said}: as a requirement, a constraint, or "
                     f"what the exercise is designed to practise. " + STYLE,
-                    {"ways": [way], "checked": [way]}))
+                    {"ways": [way], "checked": [family]}))
     out.append(("described|layout", "Write 30 different lines as left over "
                 "when a markdown document about programming is cut into "
                 "lines: heading marks alone, table rules, short labels "
