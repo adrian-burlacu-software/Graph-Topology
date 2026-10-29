@@ -869,6 +869,22 @@ class CodeTalkTests(unittest.TestCase):
                 "    assert Box([1, 2]).total() == 3\n"), "boxes")
         self.assertEqual(crash["line"], 5)
         self.assertIn("assert Box([1, 2]).total() == 3", crash["call"])
+        # a use set up as the code needs it: what each line gives, and the
+        # crash it meets -- not the code refusing what it was given
+        with tempfile.TemporaryDirectory() as folder:
+            (Path(folder) / "boxes.py").write_text(
+                "class Box:\n    def __init__(self, items):\n"
+                "        assert items, 'empty'\n        self.items = items\n"
+                "    def total(self):\n        return sum(self.item)\n",
+                encoding="utf-8")
+            used = requested._exercised(Path(folder), (
+                "from boxes import Box\nb = Box([1, 2])\nb.items\n"
+                "b.total()\n"), "boxes")
+            refused = requested._exercised(Path(folder), (
+                "from boxes import Box\nBox([])\n"), "boxes")
+        self.assertEqual(used[0], {"use": "b.items", "gives": "[1, 2]"})
+        self.assertEqual(used[1]["crash"]["line"], 6)
+        self.assertNotIn("crash", refused[0])
 
     def test_a_doing_sure_together_is_code_talk(self):
         from unittest import mock

@@ -366,6 +366,100 @@ def inputs(statement: str, held, path: str, keeps: bool = False) -> list:
     return [_code_of(reply) for reply in replies]
 
 
+#: what the code model is asked to write of a request that needs no output
+#: worked out: uses of the code, set up as the code needs them -- of 52
+#: tests it wrote of CanItEdit's changes with a right change written, 38
+#: failed the right change (the outputs it works out are wrong); a use
+#: asserts nothing, and shows a crash however the output should be
+EXERCISE = ("For example, asked \"Maze.solve should return the shortest "
+            "path\" of a file maze.py with `class Maze` built from a grid, "
+            "uses of what the request is about are\n```python\nfrom maze "
+            "import Maze\nm = Maze([[2, 0, 0], [1, 1, 0], [3, 0, 0]])\n"
+            "m.solve()\nMaze([[2, 3]]).solve()\n```\n-- each builds what it "
+            "needs with literal values, then uses it; nothing is asserted.\n"
+            "\nA programmer asked for this change to their Python project: "
+            "\"{statement}\"\nThe file {path} (module {module}), as it is "
+            "now:\n```python\n{text}\n```\nWrite 3 to 6 lines that use the "
+            "code as it will be once the change is made: import from "
+            "{module}, build what is needed with literal values the code "
+            "accepts, and use what the request is about, each use on a line "
+            "of its own. No asserts, no prints, no files. One ```python "
+            "block, nothing else.")
+#: uses the code model writes of a request
+EXERCISES = 4
+
+
+def exercises(statement: str, held, path: str) -> list:
+    """The code model's uses of the code the request concerns, each once
+    (`EXERCISE`): [code]."""
+    from research.v705 import coder
+    asked = EXERCISE.format(statement=statement, path=path,
+                            module=_module(path),
+                            text=held.files[path][:6000])
+    held_ = coder.big()
+    held_.torch.manual_seed(zlib.crc32(asked.encode()))
+    replies = held_.write([asked], longest=300, samples=EXERCISES,
+                          temperature=0.7)[0]
+    out = []
+    for reply in replies:
+        code = _code_of(reply)
+        try:
+            ast.parse(code)
+        except SyntaxError:
+            continue
+        if code and code not in out:
+            out.append(code)
+    return out
+
+
+#: a use run statement by statement: what each top-level expression gives,
+#: or the crash it meets from a line of the module's own that no `raise` is
+EXERCISED = """import sys, json, ast, traceback, importlib
+sys.path.insert(0, '.')
+own = importlib.import_module({module!r}).__file__
+space = {{"__name__": "__use__"}}
+exec("from " + {module!r} + " import *", space)
+code = {code!r}
+out = []
+for node in ast.parse(code).body:
+    source = (ast.get_source_segment(code, node) or "")[:200]
+    try:
+        if isinstance(node, ast.Expr):
+            value = eval(compile(ast.Expression(node.value), "<use>",
+                                 "eval"), space)
+            out.append({{"use": source, "gives": repr(value)[:200]}})
+        else:
+            exec(compile(ast.Module([node], []), "<use>", "exec"), space)
+    except Exception as bad:
+        frames = [one for one in traceback.extract_tb(bad.__traceback__)
+                  if one.filename == own]
+        found = {{"use": source, "raises": type(bad).__name__}}
+        # (a raise or an assert is the code refusing what it was given)
+        if frames and not (frames[-1].line or "").lstrip().startswith(
+                ("raise", "assert")):
+            found["crash"] = {{"call": source, "line": frames[-1].lineno,
+                               "code": (frames[-1].line or "").strip(),
+                               "error": (type(bad).__name__ + ": "
+                                         + str(bad))[:200]}}
+        out.append(found)
+        break
+print({said!r} + json.dumps(out))
+"""
+
+
+def _exercised(root: Path, code: str, module: str) -> list:
+    """What a use (`exercises`) gives, statement by statement, in a
+    project's copy: [{use, gives} | {use, raises[, crash]}]."""
+    try:
+        done = subprocess.run(
+            [sys.executable, "-I", "-c", EXERCISED.format(
+                said=SAID, code=code, module=module)],
+            cwd=root, capture_output=True, text=True, timeout=SECONDS)
+        return _said(done.stdout) or []
+    except (subprocess.TimeoutExpired, ValueError, TypeError):
+        return []
+
+
 def tests(statement: str, held, path: str) -> list:
     """The code model's tests of the request, each once: [code]."""
     from research.v705 import coder
@@ -870,6 +964,13 @@ def checker(statement: str, held, path: str, keeps: bool = False,
         except Exception:                       # noqa: BLE001
             chosen = []
         calls = _calls(written + chosen, held, path)
+        # uses of the code, set up as it needs (`exercises`): what a change
+        # crashes on whatever its output should be -- of CanItEdit's wrong
+        # candidates, 165 of 629 crashed under them, 9 of 98 right ones
+        try:
+            uses = exercises(statement, held, path)
+        except Exception:                       # noqa: BLE001
+            uses = []
         # (every written test as a probe of what code gives -- `_probe` --
         # grouped changes finer and chose none better, 2026-10-22: kept
         # for what may use it, not used to choose)
@@ -920,7 +1021,10 @@ def checker(statement: str, held, path: str, keeps: bool = False,
         place = Path(tempfile.mkdtemp(prefix="requested-"))
         try:
             _copy(held, place, {path: changed})
-            found = _crashes(place, calls, _module(path))
+            found = [step["crash"] for code in uses
+                     for step in _exercised(place, code, _module(path))
+                     if "crash" in step]
+            found += _crashes(place, calls, _module(path))
             # and the tests of what was asked, which set the code up
             for code in kept[:CRASH_TESTS]:
                 crash = _test_crash(place, code, _module(path))
