@@ -858,6 +858,17 @@ class CodeTalkTests(unittest.TestCase):
         self.assertEqual([one["call"] for one in found], ["area(2, 3)"])
         self.assertEqual(found[0]["line"], 2)
         self.assertTrue(found[0]["error"].startswith("AttributeError"))
+        # a test sets the code up as a call alone cannot
+        with tempfile.TemporaryDirectory() as folder:
+            (Path(folder) / "boxes.py").write_text(
+                "class Box:\n    def __init__(self, items):\n"
+                "        self.items = items\n    def total(self):\n"
+                "        return sum(self.item)\n", encoding="utf-8")
+            crash = requested._test_crash(Path(folder), (
+                "from boxes import Box\n\ndef test_total():\n"
+                "    assert Box([1, 2]).total() == 3\n"), "boxes")
+        self.assertEqual(crash["line"], 5)
+        self.assertIn("assert Box([1, 2]).total() == 3", crash["call"])
 
     def test_a_doing_sure_together_is_code_talk(self):
         from unittest import mock

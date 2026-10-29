@@ -424,6 +424,49 @@ print({said!r} + json.dumps(out))
 """
 
 
+#: a test run as `RUN` runs it, and what it raises from a line of the
+#: module's own that no `raise` is: the test sets the code up as calls
+#: alone cannot (`Maze(grid).solve()`, not `solve()`)
+TEST_CRASH = """import sys, json, traceback, importlib
+sys.path.insert(0, '.')
+own = importlib.import_module({module!r}).__file__
+_test_space = {{"__name__": "__test__"}}
+exec("from " + {module!r} + " import *", _test_space)
+found = None
+try:
+    exec(compile({code!r}, "<test>", "exec"), _test_space)
+    for _name, _one in list(_test_space.items()):
+        if _name.startswith("test") and callable(_one):
+            _one()
+except Exception as bad:
+    frames = [one for one in traceback.extract_tb(bad.__traceback__)
+              if one.filename == own]
+    if frames and not (frames[-1].line or "").lstrip().startswith("raise"):
+        found = {{"line": frames[-1].lineno,
+                  "code": (frames[-1].line or "").strip(),
+                  "error": (type(bad).__name__ + ": " + str(bad))[:200]}}
+print({said!r} + json.dumps(found))
+"""
+
+
+def _test_crash(root: Path, code: str, module: str) -> dict | None:
+    code = "\n".join(line for line in code.splitlines()
+                     if not re.match(r"\s*(import|from)\s+pytest\b", line))
+    try:
+        done = subprocess.run(
+            [sys.executable, "-I", "-c", TEST_CRASH.format(
+                said=SAID, code=code, module=module)],
+            cwd=root, capture_output=True, text=True, timeout=SECONDS)
+        found = _said(done.stdout)
+    except (subprocess.TimeoutExpired, ValueError, TypeError):
+        return None
+    if found:
+        # said as the call it was: the test's last line that calls
+        lines = [one.strip() for one in code.splitlines() if "(" in one]
+        found["call"] = (lines[-1] if lines else code.strip())[:200]
+    return found
+
+
 def _crashes(root: Path, calls: list, module: str) -> list:
     if not calls:
         return []
@@ -445,6 +488,9 @@ REPAIR = ("A programmer asked for this change to their Python project: "
           "```python block, nothing else.")
 #: answers the code model writes of a fix: enough to agree
 REPAIRS = 4
+#: of the tests of what was asked, how many a change's crash is looked for
+#: in
+CRASH_TESTS = 4
 
 
 def repaired(statement: str, changed: str, path: str, crash: dict) -> list:
@@ -874,7 +920,13 @@ def checker(statement: str, held, path: str, keeps: bool = False,
         place = Path(tempfile.mkdtemp(prefix="requested-"))
         try:
             _copy(held, place, {path: changed})
-            return _crashes(place, calls, _module(path))
+            found = _crashes(place, calls, _module(path))
+            # and the tests of what was asked, which set the code up
+            for code in kept[:CRASH_TESTS]:
+                crash = _test_crash(place, code, _module(path))
+                if crash:
+                    found.append(crash)
+            return found
         finally:
             shutil.rmtree(place, ignore_errors=True)
 
