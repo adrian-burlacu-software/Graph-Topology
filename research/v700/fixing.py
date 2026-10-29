@@ -1512,12 +1512,17 @@ def _change_once(statement: str, held, subject, key=None,
         crashing = []
         for row in sorted((one for one in passed if one.get("own ok")),
                           key=lambda one: -len(one.get("by") or ())):
+            if _short(REPAIR_SECONDS):
+                break
             found = crashes(row["text"])
             if found:
                 crashing.append((row, found[0]))
             if len(crashing) >= REPAIRED:
                 break
         for at, (crashed, crash) in enumerate(crashing):
+            # (each a time to write: the round's whole share of the turn)
+            if _short(REPAIR_SECONDS / 2):
+                break
             for number, whole in enumerate(repair(crashed["text"], crash)):
                 if not (whole.startswith(head_) and whole.endswith(tail_)
                         and len(whole) >= len(head_) + len(tail_)):

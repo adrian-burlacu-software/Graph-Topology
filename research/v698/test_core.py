@@ -885,6 +885,17 @@ class CodeTalkTests(unittest.TestCase):
         self.assertEqual(used[0], {"use": "b.items", "gives": "[1, 2]"})
         self.assertEqual(used[1]["crash"]["line"], 6)
         self.assertNotIn("crash", refused[0])
+        # a change that never ends costs the time it is given, no more
+        import time
+        with tempfile.TemporaryDirectory() as folder:
+            (Path(folder) / "loops.py").write_text(
+                "def solve():\n    while True:\n        pass\n",
+                encoding="utf-8")
+            started = time.time()
+            self.assertEqual(requested._exercised(
+                Path(folder), "from loops import solve\nsolve()\n",
+                "loops", 1), [])
+        self.assertLess(time.time() - started, 8)
 
     def test_a_doing_sure_together_is_code_talk(self):
         from unittest import mock

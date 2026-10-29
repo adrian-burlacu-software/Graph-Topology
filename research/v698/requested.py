@@ -31,6 +31,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import zlib
 from pathlib import Path
 
@@ -447,14 +448,15 @@ print({said!r} + json.dumps(out))
 """
 
 
-def _exercised(root: Path, code: str, module: str) -> list:
+def _exercised(root: Path, code: str, module: str,
+               seconds: float = SECONDS) -> list:
     """What a use (`exercises`) gives, statement by statement, in a
     project's copy: [{use, gives} | {use, raises[, crash]}]."""
     try:
         done = subprocess.run(
             [sys.executable, "-I", "-c", EXERCISED.format(
                 said=SAID, code=code, module=module)],
-            cwd=root, capture_output=True, text=True, timeout=SECONDS)
+            cwd=root, capture_output=True, text=True, timeout=seconds)
         return _said(done.stdout) or []
     except (subprocess.TimeoutExpired, ValueError, TypeError):
         return []
@@ -543,14 +545,15 @@ print({said!r} + json.dumps(found))
 """
 
 
-def _test_crash(root: Path, code: str, module: str) -> dict | None:
+def _test_crash(root: Path, code: str, module: str,
+                seconds: float = SECONDS) -> dict | None:
     code = "\n".join(line for line in code.splitlines()
                      if not re.match(r"\s*(import|from)\s+pytest\b", line))
     try:
         done = subprocess.run(
             [sys.executable, "-I", "-c", TEST_CRASH.format(
                 said=SAID, code=code, module=module)],
-            cwd=root, capture_output=True, text=True, timeout=SECONDS)
+            cwd=root, capture_output=True, text=True, timeout=seconds)
         found = _said(done.stdout)
     except (subprocess.TimeoutExpired, ValueError, TypeError):
         return None
@@ -561,14 +564,15 @@ def _test_crash(root: Path, code: str, module: str) -> dict | None:
     return found
 
 
-def _crashes(root: Path, calls: list, module: str) -> list:
+def _crashes(root: Path, calls: list, module: str,
+             seconds: float = SECONDS) -> list:
     if not calls:
         return []
     try:
         done = subprocess.run(
             [sys.executable, "-I", "-c", CRASHES.format(
                 said=SAID, calls=calls, module=module)],
-            cwd=root, capture_output=True, text=True, timeout=SECONDS)
+            cwd=root, capture_output=True, text=True, timeout=seconds)
         return _said(done.stdout) or []
     except (subprocess.TimeoutExpired, ValueError, TypeError):
         return []
@@ -585,6 +589,11 @@ REPAIRS = 4
 #: of the tests of what was asked, how many a change's crash is looked for
 #: in
 CRASH_TESTS = 4
+#: how long a change's runs for a crash may take, all of them: a change that
+#: does not end (a maze solver looping) met every run's own timeout in turn,
+#: 40-80 s a change -- Dijkstra's 18 changes ~10 minutes (2026-10-29), where
+#: one that ends runs them all in under a second
+CRASH_SECONDS = 6
 
 
 def repaired(statement: str, changed: str, path: str, crash: dict) -> list:
@@ -964,13 +973,6 @@ def checker(statement: str, held, path: str, keeps: bool = False,
         except Exception:                       # noqa: BLE001
             chosen = []
         calls = _calls(written + chosen, held, path)
-        # uses of the code, set up as it needs (`exercises`): what a change
-        # crashes on whatever its output should be -- of CanItEdit's wrong
-        # candidates, 165 of 629 crashed under them, 9 of 98 right ones
-        try:
-            uses = exercises(statement, held, path)
-        except Exception:                       # noqa: BLE001
-            uses = []
         # (every written test as a probe of what code gives -- `_probe` --
         # grouped changes finer and chose none better, 2026-10-22: kept
         # for what may use it, not used to choose)
@@ -1015,22 +1017,46 @@ def checker(statement: str, held, path: str, keeps: bool = False,
             f"it is not written {W.said([way], 'python')}"
             for way in unwritten(changed, held.files[path], ways)]
 
+    uses: list = []
+
     def crashes(changed: str) -> list:
         """What the calls the change is run on raise from its own lines
-        (`CRASHES`): a fault whatever the tests expect."""
+        (`CRASHES`): a fault whatever the tests expect -- the first found,
+        in `CRASH_SECONDS` of runs."""
+        if not uses:
+            # uses of the code, set up as it needs (`exercises`): what a
+            # change crashes on whatever its output should be -- of
+            # CanItEdit's wrong candidates, 165 of 629 crashed under them,
+            # 9 of 98 right ones. Written only when looked for: 12-30 s of
+            # the code model's, which a turn with no repair never waits on
+            try:
+                uses.extend(exercises(statement, held, path) or [None])
+            except Exception:                   # noqa: BLE001
+                uses.append(None)
+        module = _module(path)
+        # uses first, then the calls, then the tests of what was asked,
+        # which set the code up
+        runs = [(lambda seconds, code=code: [
+                    step["crash"] for step in
+                    _exercised(place, code, module, seconds)
+                    if "crash" in step])
+                for code in uses if code is not None]
+        runs.append(lambda seconds: _crashes(place, calls, module, seconds))
+        runs += [(lambda seconds, code=code: [
+                     one for one in [_test_crash(place, code, module, seconds)]
+                     if one])
+                 for code in kept[:CRASH_TESTS]]
         place = Path(tempfile.mkdtemp(prefix="requested-"))
+        until = time.time() + CRASH_SECONDS
         try:
             _copy(held, place, {path: changed})
-            found = [step["crash"] for code in uses
-                     for step in _exercised(place, code, _module(path))
-                     if "crash" in step]
-            found += _crashes(place, calls, _module(path))
-            # and the tests of what was asked, which set the code up
-            for code in kept[:CRASH_TESTS]:
-                crash = _test_crash(place, code, _module(path))
-                if crash:
-                    found.append(crash)
-            return found
+            for run in runs:
+                if time.time() >= until:
+                    return []
+                found = run(until - time.time())
+                if found:
+                    return found
+            return []
         finally:
             shutil.rmtree(place, ignore_errors=True)
 
