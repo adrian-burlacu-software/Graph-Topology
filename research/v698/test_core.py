@@ -842,6 +842,23 @@ class CodeTalkTests(unittest.TestCase):
         # the language is what it is written in, not a way it is written
         self.assertEqual(requested.unwritten(looped, before, ["python"]), [])
 
+    def test_what_crashes_when_run_is_found_in_its_own_lines(self):
+        import tempfile
+        from pathlib import Path
+        from research.v698 import requested
+        with tempfile.TemporaryDirectory() as folder:
+            (Path(folder) / "shapes.py").write_text(
+                "def area(w, h):\n    return w * h.size\n\n"
+                "def check(n):\n    if n < 0:\n"
+                "        raise ValueError('negative')\n    return n\n",
+                encoding="utf-8")
+            found = requested._crashes(Path(folder), [
+                "area(2, 3)", "check(-1)", "check(2)"], "shapes")
+        # a fault of its own line, not what it raises on purpose
+        self.assertEqual([one["call"] for one in found], ["area(2, 3)"])
+        self.assertEqual(found[0]["line"], 2)
+        self.assertTrue(found[0]["error"].startswith("AttributeError"))
+
     def test_a_doing_sure_together_is_code_talk(self):
         from unittest import mock
         from research.v698 import reading

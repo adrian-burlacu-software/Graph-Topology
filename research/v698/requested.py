@@ -399,6 +399,95 @@ REWRITE = ("A programmer asked for this change to their Python project: "
 WRITTEN = 12
 
 
+#: what a call raises from a line of the module's own that no `raise` is:
+#: a fault of the code whatever the tests expect -- {call, error, line,
+#: code} each, of the calls that do
+CRASHES = """import sys, json, traceback, importlib
+sys.path.insert(0, '.')
+space = {{}}
+exec("from " + {module!r} + " import *", space)
+own = importlib.import_module({module!r}).__file__
+out = []
+for call in {calls!r}:
+    try:
+        eval(call, space)
+    except Exception as bad:
+        frames = [one for one in traceback.extract_tb(bad.__traceback__)
+                  if one.filename == own]
+        if frames and not (frames[-1].line or "").lstrip().startswith(
+                "raise"):
+            out.append({{"call": call, "line": frames[-1].lineno,
+                         "code": (frames[-1].line or "").strip(),
+                         "error": (type(bad).__name__ + ": " +
+                                   str(bad))[:200]}})
+print({said!r} + json.dumps(out))
+"""
+
+
+def _crashes(root: Path, calls: list, module: str) -> list:
+    if not calls:
+        return []
+    try:
+        done = subprocess.run(
+            [sys.executable, "-I", "-c", CRASHES.format(
+                said=SAID, calls=calls, module=module)],
+            cwd=root, capture_output=True, text=True, timeout=SECONDS)
+        return _said(done.stdout) or []
+    except (subprocess.TimeoutExpired, ValueError, TypeError):
+        return []
+
+
+REPAIR = ("A programmer asked for this change to their Python project: "
+          "\"{statement}\"\nIn {path}, the change written gives this "
+          "function:\n```python\n{before}\n```\nRun as `{call}`, it raises "
+          "{error}, at the line `{code}`.\nWrite the whole function again, "
+          "fixed and changed as asked -- nothing else changed -- in one "
+          "```python block, nothing else.")
+#: answers the code model writes of a fix: enough to agree
+REPAIRS = 4
+
+
+def repaired(statement: str, changed: str, path: str, crash: dict) -> list:
+    """A change that crashes when run (`crashes`), written again by the
+    code model told the call, the error and its line: [the changed text of
+    `path`, the function it crashed in written again]. A crash is a fault
+    whatever the tests expect -- unlike a test the code model guessed."""
+    import ast
+
+    from research.v705 import coder, commits
+    try:
+        tree = ast.parse(changed)
+    except SyntaxError:
+        return []
+    found = [node for node in ast.walk(tree)
+             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+             and node.lineno <= crash["line"] <= (node.end_lineno or 0)]
+    if not found:
+        return []
+    node = min(found, key=lambda one: one.end_lineno - one.lineno)
+    lines = changed.splitlines(keepends=True)
+    before = "".join(lines[node.lineno - 1:node.end_lineno]).strip(
+        "\n").lstrip()
+    asked = REPAIR.format(statement=statement, path=path, before=before,
+                          call=crash["call"], error=crash["error"],
+                          code=crash["code"])
+    held_ = coder.big()
+    held_.torch.manual_seed(zlib.crc32(asked.encode()))
+    try:
+        replies = held_.write([asked], longest=900, samples=REPAIRS,
+                              temperature=0.7)[0]
+    except held_.torch.cuda.OutOfMemoryError:
+        held_.torch.cuda.empty_cache()
+        return []
+    out = []
+    for reply in replies:
+        code = commits._code_of(reply)
+        fixed = commits._placed(code, before, changed) if code else None
+        if fixed and fixed != changed:
+            out.append(fixed)
+    return out
+
+
 def rewritten(statement: str, held, path: str, name: str | None) -> list:
     """The code model's changes: the function `name` written whole again
     as asked, put where it stands -- or, of a file, the file whole:
@@ -779,6 +868,16 @@ def checker(statement: str, held, path: str, keeps: bool = False,
             f"it is not written {W.said([way], 'python')}"
             for way in unwritten(changed, held.files[path], ways)]
 
+    def crashes(changed: str) -> list:
+        """What the calls the change is run on raise from its own lines
+        (`CRASHES`): a fault whatever the tests expect."""
+        place = Path(tempfile.mkdtemp(prefix="requested-"))
+        try:
+            _copy(held, place, {path: changed})
+            return _crashes(place, calls, _module(path))
+        finally:
+            shutil.rmtree(place, ignore_errors=True)
+
     def verify_files(changes: dict, least: int | None = None) -> str:
         """'' where the project, these files so changed, holds: its own
         tests, and `least` of the kept (half of them where not said)."""
@@ -805,6 +904,7 @@ def checker(statement: str, held, path: str, keeps: bool = False,
                 "why": "no test tells the project from the change"}
     return {"verify": verify if kept else None,
             "verify files": verify_files, "score": score, "lacks": lacks,
+            "crashes": crashes,
             "tests": written, "kept": kept, "left": left, "own": own,
             "need": need, "calls": calls, "original": original,
             "interface": asked, "stated": len(told), "said": said,
