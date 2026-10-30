@@ -483,6 +483,10 @@ def _step(state: dict, step: dict, change, held, debug=None) -> list:
         _to_the_author(shared, lines)
         file = shared.get("file")
         looked = _inside(state, debug)
+        if looked and "function" not in looked:
+            # never called where it was looked for (a scratch conversation
+            # holds no project): nothing seen inside it to go by
+            looked = None
         if looked:
             # each call followed to where the nothing came from, the last
             # said whole
