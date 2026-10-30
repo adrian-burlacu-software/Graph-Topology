@@ -303,13 +303,10 @@ def compared(before: dict, after: dict) -> dict:
             "gained": gained, "lost": lost}
 
 
-#: what a change of its own may not touch: the test it is measured by
-EXAM = ("research/v704/probes.py", "research/v704/fixtures/")
-
-
 def _tampered(files: list) -> list:
     """The files of a change that are of the test measuring it."""
-    return [one for one in files if one.startswith(EXAM)]
+    from research.v705 import inside
+    return [one for one in files if inside.of_the_exam(one)]
 
 
 def _said_to_one(label: str, *suite: str) -> dict:
@@ -368,6 +365,7 @@ def on_probes(rounds: int, seen: str, held: str, core: str) -> list:
     _restart()
     stamp = time.strftime("%Y%m%d-%H%M")
     rows = []
+    tried = set()
     for round_ in range(1, rounds + 1):
         started = time.time()
         row = {"round": round_, "measure": seen,
@@ -382,6 +380,15 @@ def on_probes(rounds: int, seen: str, held: str, core: str) -> list:
             rows.append(row)
             break
         row["diff"] = _git("diff")[:20000]
+        if row["diff"] in tried:
+            # it goes the same way each time: another round is the same round
+            _reverted(files)
+            row.update(outcome="the same change as a round before",
+                       seconds=round(time.time() - started))
+            _logged(row)
+            rows.append(row)
+            break
+        tried.add(row["diff"])
         _stop()
         passed, said = (False, "") if _tampered(files) else tests()
         row["tests"] = said

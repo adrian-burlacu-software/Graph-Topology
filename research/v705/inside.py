@@ -1320,50 +1320,93 @@ def lost(session, turns: list, phrase: str) -> dict | None:
 AUTHORED = 40
 
 
+#: what measures a change, which no change of its own may touch or be aimed
+#: at: run again it says what it was changed to say (`text_of`, asked to
+#: answer `is there a function called refund?`, gave "yes" to it)
+EXAM = ("research/v704/probes.py", "research/v704/fixtures/",
+        "research/v704/converse.py", "research/v704/suite.py",
+        "research/v704/selfmodel.py", "research/v705/loop.py",
+        "research/v705/inside.py", "research/run_tests.py")
+
+
+def of_the_exam(file: str | None) -> bool:
+    """Whether a file measures what is changed: the test itself, or a test."""
+    file = (file or "").replace("\\", "/")
+    return file.startswith(EXAM) or "/test" in file
+
+
+def _texts(value, depth: int = 3) -> list:
+    """The text a value holds: an answer is given back as a dict of its
+    text, not as a string."""
+    if isinstance(value, str):
+        return [value] if len(value) >= 8 else []
+    if depth and isinstance(value, dict):
+        value = list(value.values())
+    if depth and isinstance(value, (list, tuple)):
+        return [text for one in value for text in _texts(one, depth - 1)]
+    return []
+
+
 def wrote(calls: list, reply: str) -> dict | None:
-    """Of calls in the order they returned ({function, file, line, gave}),
-    the first to give back the words a reply begins with: the deepest that
-    had them, where they were written -- what gave them on only returned
-    later."""
+    """Of calls in the order they returned ({function, file, line, gave,
+    had, by}: the text given back, the text it was given, its caller), who
+    first made the words a reply begins with: the first call to give them
+    back -- or, given them already (`_reply(text)` only wraps), the one that
+    called it. What gave them on only returned later."""
     said = " ".join(reply.split())[:AUTHORED].lower()
     if not said:
         return None
+
+    def holds(texts):
+        return any(said in " ".join(one.split()).lower() for one in texts)
     for call in calls:
-        if said in " ".join(call["gave"].split()).lower():
-            return call
+        if holds(call["gave"]):
+            return call.get("by") if holds(call.get("had") or []) else call
     return None
 
 
 def author(turns: list) -> dict | None:
     """The function of its own code that wrote what a project's case was
-    answered with: every call returning text watched while the case is said
-    again (`_project_turn`), the deepest that gave back the reply's words
-    (`wrote`). A wrong answer is changed where it is made -- `page.replies`,
-    which passes every answer on, was asked 61 changes for `how many
-    functions are there in tools.py?` and could not hold one. {function,
-    file, line}, else None."""
+    answered with: every call watched while the case is said again
+    (`_project_turn`), who first made the reply's words (`wrote`) -- never
+    what measures it (`of_the_exam`). A wrong answer is changed where it is
+    made -- `page.replies`, which passes every answer on, was asked 61
+    changes for `how many functions are there in tools.py?` and could not
+    hold one. {function, file, line}, else None."""
     calls: list = []
     places: dict = {}
 
-    def local(frame, event, arg):
-        if event == "return" and isinstance(arg, str) and len(arg) >= 8:
-            calls.append({"function": frame.f_code.co_qualname,
-                          "file": places[frame.f_code.co_filename],
-                          "line": frame.f_lineno, "gave": arg})
-        return local
-
-    def tracer(frame, event, arg):
-        if event != "call":
-            return None
-        name = frame.f_code.co_filename
+    def place(name):
         path = places.get(name, False)
         if path is False:
             path = _relative(name) if "research" in name else None
             if path and (not path.startswith("research/") or
-                         "/test" in path):
+                         of_the_exam(path)):
                 path = None
             places[name] = path
-        if not path:
+        return path
+
+    def local(frame, event, arg):
+        if event == "return":
+            gave = _texts(arg)
+            if gave:
+                code = frame.f_code
+                given = code.co_varnames[:code.co_argcount +
+                                         code.co_kwonlyargcount]
+                up = frame.f_back
+                calls.append({
+                    "function": code.co_qualname,
+                    "file": places[code.co_filename], "line": frame.f_lineno,
+                    "gave": gave,
+                    "had": _texts([frame.f_locals.get(one) for one in given]),
+                    "by": up and place(up.f_code.co_filename) and {
+                        "function": up.f_code.co_qualname,
+                        "file": place(up.f_code.co_filename),
+                        "line": up.f_lineno}})
+        return local
+
+    def tracer(frame, event, arg):
+        if event != "call" or not place(frame.f_code.co_filename):
             return None
         frame.f_trace_lines = False
         return local

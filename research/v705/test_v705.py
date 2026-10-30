@@ -359,16 +359,39 @@ class AuthorTests(unittest.TestCase):
         from research.v705 import inside
         calls = [
             {"function": "noise", "file": "a.py", "line": 1,
-             "gave": "something else entirely, not said"},
+             "gave": ["something else entirely, not said"]},
             {"function": "_listed", "file": "b.py", "line": 2,
-             "gave": "15 function(s): Hire.ends (rental/hires.py:27)"},
+             "gave": ["15 function(s): Hire.ends (rental/hires.py:27)"]},
             {"function": "replies", "file": "c.py", "line": 3,
-             "gave": "15 function(s): Hire.ends (rental/hires.py:27), more"}]
+             "gave": ["15 function(s): Hire.ends (rental/hires.py:27), more"]}]
         self.assertEqual(inside.wrote(
             calls, "15 function(s):  Hire.ends (rental/hires.py:27)")
             ["function"], "_listed")
         self.assertIsNone(inside.wrote(calls, "never written by any call"))
         self.assertIsNone(inside.wrote(calls, ""))
+
+    def test_what_only_wraps_the_words_did_not_write_them(self):
+        from research.v705 import inside
+        words = "late_charge is the project's: I read it"
+        calls = [{"function": "_reply", "file": "a.py", "line": 1,
+                  "gave": [words], "had": [words],
+                  "by": {"function": "_act", "file": "b.py", "line": 2}}]
+        self.assertEqual(inside.wrote(calls, words)["function"], "_act")
+
+    def test_an_answer_is_read_inside_what_holds_it(self):
+        from research.v705 import inside
+        self.assertEqual(inside._texts(
+            {"text": "fifteen functions", "n": 15,
+             "more": [{"text": "another of them"}], "s": "tiny"}),
+            ["fifteen functions", "another of them"])
+
+    def test_what_measures_is_no_place_to_change(self):
+        from research.v705 import inside
+        for file in ("research/v704/converse.py", "research/v705/inside.py",
+                     "research/v704/test_v704.py"):
+            self.assertTrue(inside.of_the_exam(file), file)
+        self.assertFalse(inside.of_the_exam("research/v698/asking.py"))
+        self.assertFalse(inside.of_the_exam(None))
 
     def test_a_project_part_answering_loses_no_reading(self):
         from research.v704 import doing

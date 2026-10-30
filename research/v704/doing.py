@@ -518,6 +518,13 @@ def _step(state: dict, step: dict, change, held, debug=None) -> list:
         # cannot make `my dog` a mention; `act`, which calls it, makes
         # mentions of the same words below it)
         targets = list(reversed(chain))[:UP] if looked else [shared]
+        from research.v705 import inside as seen
+        targets = [one for one in targets
+                   if not seen.of_the_exam(one.get("file"))]
+        if not targets:
+            return lines + [f"{step['said']}: what answered it is what "
+                            f"measures it, which is not mine to change, so "
+                            f"I left it."]
         said, changed, target = "", False, targets[0]
         for at, target in enumerate(targets):
             if at:
