@@ -593,6 +593,27 @@ def stated(statement: str, names) -> list:
     return out
 
 
+def values_said(statement: str, held, path: str) -> list:
+    """A constant of `path` the request gives a value (`change MAX_HIRES to
+    6`, `LATE_FEE from 7 to 9`), as a test: the name looked up, the value the
+    last one said within a few words of it. The code model's tests of such a
+    change only ever tested something else, and refused it, right."""
+    constants = {one.name for one in held.index().symbols.values()
+                 if one.file == path and one.kind == "constant"}
+    tokens = re.findall(r"[A-Za-z_]\w*|-?\d+(?:\.\d+)?|\"[^\"]*\"|'[^']*'",
+                        statement)
+    out = []
+    for at, name in enumerate(tokens):
+        if name not in constants:
+            continue
+        values = [one for one in tokens[at + 1:at + 1 + VALUE_WITHIN]
+                  if not one[0].isalpha() and one[0] != "_"]
+        if values:
+            out.append(f"from {_module(path)} import {name}\n"
+                       f"assert {name} == {values[-1]}")
+    return out
+
+
 def _defines(text: str, asked: dict) -> str:
     """'' where code defines every name asked, each function with the
     parameters asked; else what it lacks."""
@@ -720,7 +741,7 @@ def checker(statement: str, held, path: str, keeps: bool = False,
         names = {one.name.split(".")[-1] for one in
                  held.index().symbols.values() if one.file == path} | \
             set(asked)
-        said = stated(statement, names)
+        said = stated(statement, names) + values_said(statement, held, path)
         told = [code for code in said
                 if not _runs(root, code, _module(path))[0]]
         kept = told + [code for code in kept if code not in told]
@@ -820,6 +841,8 @@ def code_shaped(name: str) -> bool:
 #: how many words after a name of the project a new name is said, to be
 #: that name's new name
 RENAMED_WITHIN = 3
+#: how near a constant the value a request gives it is said
+VALUE_WITHIN = 6
 
 
 def renames(statement: str, held) -> list:

@@ -296,6 +296,13 @@ def resolve(reading, held, space, turn: int, key) -> Subject | None:
         phrase = reading.known[0]
     name = phrase.split("(")[0].strip(" ?.,!'\"`")
     if reading.subject == "project" and held is not None:
+        # of the project's, but naming a file of it (`how many functions are
+        # there in tools.py?` was answered with the whole project's): the
+        # file, by lookup
+        for one in [name, *getattr(reading, "known", ())]:
+            path = _file(held, one) if one and held.files else None
+            if path:
+                return Subject("file", path, path)
         return Subject("project", held.name or "the project")
     if reading.subject == "described" and held is not None and held.files:
         # said by what it does (`which function works out when a loan is
@@ -331,11 +338,17 @@ def answered_read(reading, text: str, held, space, turn: int,
     if subject is None:
         return None
     if subject.kind == "unknown":
-        said = (f"I don't know {subject.name}: it is not a function or "
-                f"file of the project, nor the code we were writing."
-                + ("" if held is not None else
-                   " (No project is read: Read the Project in the editor.)"))
-        return _reply("unknown", text, said, {"read": reading.json()},
+        if held is None:
+            said = (f"I don't know {subject.name}: it is not the code we "
+                    f"were writing. (No project is read: Read the Project "
+                    f"in the editor.)")
+            return _reply("unknown", text, said, {"read": reading.json()},
+                          name=subject.name)
+        # looked up in all of it, and not there: that is a no
+        return _reply("unknown", text,
+                      f"No {subject.name} in the project: no function, file "
+                      f"or other name of it, nor in the code we were "
+                      f"writing.", {"read": reading.json()},
                       name=subject.name)
     aspect = reading.aspect if reading.aspect != "none" else "explain"
     found = about(aspect, subject, text, held, space, turn, key)
@@ -592,13 +605,22 @@ def _a_file(held, subject: Subject, text: str) -> dict:
     importers = sorted({path for path, other in held.outline().items()
                         for one in other["imports"]
                         if _imports(held, path, one["from"], subject.file)})
+    # its classes and constants, as its functions are
+    named = {kind: sorted(one.name for one in held.index().symbols.values()
+                          if one.file == subject.file and one.kind == kind)
+             for kind in ("class", "constant")} \
+        if subject.file.endswith(".py") else {}
     said = (f"{subject.file}: {read['lines']} lines"
             + (f", saying of itself “{read['about']}”"
                if read.get("about") else "")
             + f"; {len(read['functions'])} functions: "
             + (", ".join(f"{one['name']} (line {one['start']})"
                          for one in read["functions"][:20]) or "none")
-            + "." + (f" It imports from "
+            + "." + "".join(
+                f" {len(names)} {kind}{'es' if kind == 'class' else 's'}: "
+                f"{', '.join(names)}." for kind, names in named.items()
+                if names)
+            + (f" It imports from "
                      f"{', '.join(one['from'] for one in read['imports'])}."
                      if read["imports"] else "")
             + (f" Imported by {', '.join(importers)}." if importers else ""))
@@ -1013,9 +1035,6 @@ def _outcome(held, subject: Subject, text: str) -> dict:
     call can be made or run."""
     if subject.kind != "function" or not str(subject.file).endswith(".py"):
         return _explain(held, subject, text)
-    import shutil
-    import tempfile
-    from pathlib import Path
     from research.v698 import requested
     from research.v705 import coder
     name = subject.name.split(".")[-1]
@@ -1031,10 +1050,21 @@ def _outcome(held, subject: Subject, text: str) -> dict:
     calls = [one for one in calls if one.startswith(f"{name}(")]
     if not calls:
         return _explain(held, subject, text)
+    return ran(held, subject, text, calls[0])
+
+
+def ran(held, subject: Subject, text: str, call: str) -> dict:
+    """A call of a function of the project, run in a copy of it (v698
+    `requested`): what it gave said, and what it works with; what the
+    function is where the call does not fit."""
+    import shutil
+    import tempfile
+    from pathlib import Path
+    from research.v698 import requested
     root = Path(tempfile.mkdtemp(prefix="outcome-"))
     try:
         requested._copy(held, root)
-        [given] = requested._gives(root, calls[:1],
+        [given] = requested._gives(root, [call],
                                    requested._module(subject.file))
     finally:
         shutil.rmtree(root, ignore_errors=True)
@@ -1042,14 +1072,14 @@ def _outcome(held, subject: Subject, text: str) -> dict:
         # the call written does not fit (`Book('12345')` of five fields):
         # an error of the call, not of what is asked -- what it is, said
         return _explain(held, subject, text)
-    said = (f"{calls[0]} raises {given}" if given[:1].isupper() and
+    said = (f"{call} raises {given}" if given[:1].isupper() and
             given.isidentifier() and given not in ("True", "False", "None")
-            else f"{calls[0]} gives {given}") + \
+            else f"{call} gives {given}") + \
         f" -- run in a copy of the project ({subject.file})"
     # and what it works with (`how does due_date work out the date?`: the
     # run's answer alone said 15 for 1, not that LOAN_DAYS is 14)
     said += _inside(held, {"file": subject.file, "name": subject.name}) + "."
-    return _reply("outcome", text, said, {"call": calls[0], "gave": given},
+    return _reply("outcome", text, said, {"call": call, "gave": given},
                   name=subject.name)
 
 

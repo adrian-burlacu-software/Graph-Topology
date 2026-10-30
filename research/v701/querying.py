@@ -345,7 +345,7 @@ def _by_value(text: str, held) -> Found | None:
     longest = max(one[0] for one in found)
     found = [one for one in found if one[0] == longest]
     if len({id(one[3]) for one in found}) != 1:
-        return None
+        return _by_shared_value(found)
     _, model, path, record, named, said = found[0]
     rest = re.sub(re.escape(said), " ", text, flags=re.I)
     fields = [one for one in record if one != named]
@@ -387,6 +387,28 @@ def _by_value(text: str, held) -> Found | None:
                  value=value, file=model.path, place=place,
                  looked={"named by": named, "value": said, "field": field_,
                          "likeness": likeness_, "record": record})
+
+
+def _by_shared_value(found: list) -> Found | None:
+    """A proper name several records hold in one field, said as they hold it
+    (`who lives in Ashby?`): the records. A word that merely is a value
+    (`power`, a tool's group) names none."""
+    if len({(id(one[1]), one[2], one[4]) for one in found}) != 1:
+        return None
+    _, model, path, _, named, said = found[0]
+    if not said[:1].isupper():
+        return None
+    records = [one[3] for one in found]
+    key = (model.keys(path) or [None])[0] or next(
+        (one for one in model.collections[path]["fields"] if one != named and
+         all(isinstance(_field_of(row, one), str) for row in records)), None)
+    if key is None:
+        return None
+    return Found(said=f"{_said_list(_called(model, path, key, records))}: the "
+                      f"records in {model.path} whose {named} is {said}.",
+                 value=[_field_of(row, key) for row in records],
+                 file=model.path, place=path,
+                 looked={"named by": named, "value": said, "field": key})
 
 
 def of_record(text: str, held, path: str, record: dict) -> Found | None:
@@ -1033,6 +1055,13 @@ def _carried(asked: Asked, found: dict | None, target: str,
     looked["field"] = name
     picked = [_field_of(one, name) for one in records]
     picked = [one for one in picked if one is not None]
+    if not found["field"] and asked.act not in ("sum", "mean", "max", "min",
+                                                "value"):
+        # no field asked of: each said by what tells them apart for a person
+        # as well as by its key
+        return Found(f"{_said_list(_called(model, collection, name, records))}"
+                     f": the {group} in {where}" + _because(looked) + ".",
+                     picked, where, collection, asked, looked)
     if asked.act in ("sum", "mean", "max", "min"):
         numbers = [one for one in picked if isinstance(one, (int, float))
                    and not isinstance(one, bool)]
@@ -1054,6 +1083,25 @@ def _carried(asked: Asked, found: dict | None, target: str,
     return Found(f"{_said_list(picked)}: the {name} of the {group} in "
                  f"{where}" + _because(looked) + ".", picked, where,
                  collection, asked, looked)
+
+
+def _called(model, collection: str, key: str, records: list) -> list:
+    """Records as an answer says them: their key -- beside the other text
+    of theirs that tells every record of the collection apart, where there
+    is one (`M4 (Cement Mixer)`: a code alone answers nobody)."""
+    every = model.records()[collection]
+    fields = model.collections[collection]["fields"]
+
+    def tells(field_):
+        values = [_field_of(row, field_) for row in every]
+        return all(isinstance(one, str) for one in values) and \
+            len(set(values)) == len(values)
+    other = next((one for one in fields if one != key and tells(one)), None)
+    said = [_field_of(row, key) for row in records]
+    if other is None:
+        return said
+    return [f"{one} ({_field_of(row, other)})"
+            for one, row in zip(said, records)]
 
 
 def _kept(model, collection: str, group: str, every: list,
@@ -1136,7 +1184,8 @@ def _extreme(asked: Asked, found: dict, model, records: list,
     word = ({"max": "latest", "min": "earliest"} if _kinds(
         [field_], records)[field_] == "time" else {
         "max": "largest", "min": "smallest"})[asked.act]
-    return Found(f"{_said_list(names)}: the {group} in {where} with the "
+    shown = _called(model, collection, key, rows) if key else names
+    return Found(f"{_said_list(shown)}: the {group} in {where} with the "
                  f"{word} {field_} ({_said_value(best)}).",
                  names[0] if len(names) == 1 else names, where, collection,
                  asked, looked)

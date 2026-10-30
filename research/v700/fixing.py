@@ -768,12 +768,17 @@ def said_names(statement: str, text: str, path: str, start: int, end: int,
                subject) -> set:
     """The code names the statement says that the part's code (lines
     [start, end] of the file) uses -- looked up, not read -- other than
-    what is changed itself (`forward assigns torch`: `torch`)."""
+    what is changed itself (`forward assigns torch`: `torch`), and what
+    Python itself has: `make dearest return None for an empty list` says
+    the word `list`, not the annotation `tools: list`, and every right
+    change was refused for leaving that alone."""
+    import builtins
     code = names_between(text, path, start, end)
     own = {subject.name, subject.name.split(".")[-1],
            (subject.file or "").rsplit("/", 1)[-1]}
     return {one for one in re.findall(r"[A-Za-z_$][\w$]*", statement)
-            if one in code and one not in own}
+            if one in code and one not in own and not (
+                path.endswith(".py") and hasattr(builtins, one))}
 
 
 def _outside(block: tuple, start: int, part: str, made: str) -> bool:

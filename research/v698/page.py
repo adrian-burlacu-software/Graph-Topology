@@ -416,6 +416,7 @@ def _act(read, text: str, session, memory) -> dict | None:
                 # request the project as it is fails, and its own tests
                 # (`requested.py`) -- a change is written where it holds
                 context = None
+                rename_last = None
                 path_ = subject.file or ""
                 if path_.endswith(".py") and not Pj.is_data(path_):
                     from research.v698 import requested
@@ -454,17 +455,7 @@ def _act(read, text: str, session, memory) -> dict | None:
                                   if requested.code_shaped(one[1])]
                         found_renames = shaped if len(
                             {one[1] for one in shaped}) == 1 else []
-                    for old, new, changed in found_renames:
-                        # made, not guessed: its own tests kept and,
-                        # where tests of what was asked are kept, as many
-                        # of them as any change must pass -- not one alone
-                        # (`kl_div` renamed `num_samples` passed one test
-                        # of a new way of working it out)
-                        if check.get("verify files") is None or \
-                                check["verify files"](
-                                    changed, least=None if check.get("kept")
-                                    else 0):
-                            continue
+                    def made_rename(old, new, changed):
                         diffs = []
                         for path__, after in changed.items():
                             before = held.files[path__]
@@ -488,6 +479,23 @@ def _act(read, text: str, session, memory) -> dict | None:
                                           "need": check.get("need", 0)}}
                         found["code"]["answer"]["status"] = "changed"
                         return found
+                    for old, new, changed in found_renames:
+                        # made, not guessed: its own tests kept and,
+                        # where tests of what was asked are kept, as many
+                        # of them as any change must pass -- not one alone
+                        # (`kl_div` renamed `num_samples` passed one test
+                        # of a new way of working it out)
+                        if check.get("verify files") is None or \
+                                check["verify files"](
+                                    changed, least=None if check.get("kept")
+                                    else 0):
+                            continue
+                        return made_rename(old, new, changed)
+                    shaped = [one for one in requested.renames(text, held)
+                              if requested.code_shaped(one[1])]
+                    rename_last = shaped[0] if len(
+                        {one[1] for one in shaped}) == 1 and \
+                        check.get("verify files") else None
                     if check.get("score") is None:
                         # nothing runs that tells the project as it is from
                         # the change: answers agreeing are no evidence it
@@ -540,6 +548,14 @@ def _act(read, text: str, session, memory) -> dict | None:
                             "said": (f"I did not change {subject.name}: the "
                                      f"card ran out of memory writing the "
                                      f"change -- nothing was written.")}
+                if made.get("status") != "changed" and rename_last:
+                    # no change written holds, and the request says one name
+                    # of the project and a new one written as code: the tests
+                    # the code model wrote of a rename (`late_charge(2) == 7`)
+                    # say nothing of one, what it must keep is the project's
+                    old, new, changed = rename_last
+                    if not check["verify files"](changed, least=0):
+                        return made_rename(old, new, changed)
                 if context is not None and "requested" in context:
                     made["requested"] = context["requested"]
                 asking.FOCUS[key] = (subject, turn)
@@ -627,11 +643,16 @@ def _act(read, text: str, session, memory) -> dict | None:
         if subject is not None and subject.kind == "code" and args is not None:
             return conversation.respond("call", args, text, space, turn)
         if subject is not None and subject.kind == "function":
-            said = (f"{subject.name} is the project's: I read the project, "
-                    f"I do not run it (it may do anything a program can). "
-                    f"Paste it with a question, and I will run it here.")
-            return asking._reply("run", text, said, {"read": read.json()},
-                                 name=subject.name)
+            # run in a copy of the project, as what it gives in a situation
+            # is (`asking._outcome`): the call as it is written, else as the
+            # situation said in words is written
+            name = subject.name.split(".")[-1]
+            start = text.find(f"{name}(")
+            close = coding._balanced(text, start + len(name) + 1, ")") \
+                if start >= 0 else -1
+            if close > start >= 0:
+                return asking.ran(held, subject, text, text[start:close + 1])
+            return asking._outcome(held, subject, text)
         return None
     return asking.answered_read(read, text, held, space, turn, key)
 

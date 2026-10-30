@@ -925,5 +925,79 @@ class VerifyTests(unittest.TestCase):
             del here._Dies
 
 
+class CoreFixTests(unittest.TestCase):
+    """What the probes of `rental` found wrong in the core, without a model."""
+
+    def held(self):
+        from pathlib import Path
+        from research.v698.project import Project
+        root = Path(__file__).parent.parent / "v704" / "fixtures" / "rental"
+        held = Project("rental")
+        for one in root.rglob("*"):
+            if one.is_file() and "__pycache__" not in str(one):
+                held.files[one.relative_to(root).as_posix()] = \
+                    one.read_text(encoding="utf-8")
+        return held
+
+    def test_a_value_given_a_constant_is_a_test(self):
+        from research.v698 import requested
+        got = requested.values_said("change MAX_HIRES to 6", self.held(),
+                                    "rental/hires.py")
+        self.assertEqual(got, ["from rental.hires import MAX_HIRES\n"
+                               "assert MAX_HIRES == 6"])
+        self.assertEqual(requested.values_said(
+            "change TOOLS to 6", self.held(), "rental/hires.py"), [])
+
+    def test_a_rename_reaches_a_use_through_an_alias(self):
+        from research.v698 import requested
+        got = requested.renames("rename late_charge to overdue_charge",
+                                self.held())
+        made = {new: changed for _, new, changed in got
+                if requested.code_shaped(new)}
+        self.assertEqual(list(made), ["overdue_charge"])
+        self.assertIn("H.overdue_charge(2)",
+                      made["overdue_charge"]["tests/test_rental.py"])
+
+    def test_a_builtin_said_is_no_name_of_the_code(self):
+        from types import SimpleNamespace
+        from research.v700 import fixing
+        text = "def dearest(tools: list):\n    return max(tools)\n"
+        subject = SimpleNamespace(name="dearest", file="tools.py")
+        self.assertEqual(fixing.said_names(
+            "make dearest return None for an empty list", text, "tools.py",
+            1, 2, subject), set())
+        self.assertEqual(fixing.said_names(
+            "make dearest use tools", text, "tools.py", 1, 2, subject),
+            {"tools"})
+
+    def test_records_are_called_by_what_tells_them_apart(self):
+        from types import SimpleNamespace
+        from research.v701 import querying
+        rows = [{"code": "D1", "name": "Hammer Drill", "group": "power"},
+                {"code": "S2", "name": "Circular Saw", "group": "power"}]
+        model = SimpleNamespace(
+            records=lambda: {"tools": rows},
+            collections={"tools": {"fields": ["code", "name", "group"]}})
+        self.assertEqual(querying._called(model, "tools", "code", rows[:1]),
+                         ["D1 (Hammer Drill)"])
+
+    def test_a_proper_name_several_hold_gives_them(self):
+        from types import SimpleNamespace
+        from research.v701 import querying
+        rows = [{"name": "Ines Moreau", "town": "Ashby"},
+                {"name": "Wen Li", "town": "Ashby"},
+                {"name": "Tomas Reyes", "town": "Corby"}]
+        model = SimpleNamespace(
+            path="data/customers.json", keys=lambda path: ["name"],
+            records=lambda: {"customers": rows},
+            collections={"customers": {"fields": ["name", "town"]}})
+        found = [(0, model, "customers", row, "town", said) for row, said in
+                 ((rows[0], "Ashby"), (rows[1], "Ashby"))]
+        self.assertEqual(querying._by_shared_value(found).value,
+                         ["Ines Moreau", "Wen Li"])
+        lower = [one[:5] + ("power",) for one in found]
+        self.assertIsNone(querying._by_shared_value(lower))
+
+
 if __name__ == "__main__":
     unittest.main()
