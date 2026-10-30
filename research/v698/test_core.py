@@ -842,61 +842,6 @@ class CodeTalkTests(unittest.TestCase):
         # the language is what it is written in, not a way it is written
         self.assertEqual(requested.unwritten(looped, before, ["python"]), [])
 
-    def test_what_crashes_when_run_is_found_in_its_own_lines(self):
-        import tempfile
-        from pathlib import Path
-        from research.v698 import requested
-        with tempfile.TemporaryDirectory() as folder:
-            (Path(folder) / "shapes.py").write_text(
-                "def area(w, h):\n    return w * h.size\n\n"
-                "def check(n):\n    if n < 0:\n"
-                "        raise ValueError('negative')\n    return n\n",
-                encoding="utf-8")
-            found = requested._crashes(Path(folder), [
-                "area(2, 3)", "check(-1)", "check(2)"], "shapes")
-        # a fault of its own line, not what it raises on purpose
-        self.assertEqual([one["call"] for one in found], ["area(2, 3)"])
-        self.assertEqual(found[0]["line"], 2)
-        self.assertTrue(found[0]["error"].startswith("AttributeError"))
-        # a test sets the code up as a call alone cannot
-        with tempfile.TemporaryDirectory() as folder:
-            (Path(folder) / "boxes.py").write_text(
-                "class Box:\n    def __init__(self, items):\n"
-                "        self.items = items\n    def total(self):\n"
-                "        return sum(self.item)\n", encoding="utf-8")
-            crash = requested._test_crash(Path(folder), (
-                "from boxes import Box\n\ndef test_total():\n"
-                "    assert Box([1, 2]).total() == 3\n"), "boxes")
-        self.assertEqual(crash["line"], 5)
-        self.assertIn("assert Box([1, 2]).total() == 3", crash["call"])
-        # a use set up as the code needs it: what each line gives, and the
-        # crash it meets -- not the code refusing what it was given
-        with tempfile.TemporaryDirectory() as folder:
-            (Path(folder) / "boxes.py").write_text(
-                "class Box:\n    def __init__(self, items):\n"
-                "        assert items, 'empty'\n        self.items = items\n"
-                "    def total(self):\n        return sum(self.item)\n",
-                encoding="utf-8")
-            used = requested._exercised(Path(folder), (
-                "from boxes import Box\nb = Box([1, 2])\nb.items\n"
-                "b.total()\n"), "boxes")
-            refused = requested._exercised(Path(folder), (
-                "from boxes import Box\nBox([])\n"), "boxes")
-        self.assertEqual(used[0], {"use": "b.items", "gives": "[1, 2]"})
-        self.assertEqual(used[1]["crash"]["line"], 6)
-        self.assertNotIn("crash", refused[0])
-        # a change that never ends costs the time it is given, no more
-        import time
-        with tempfile.TemporaryDirectory() as folder:
-            (Path(folder) / "loops.py").write_text(
-                "def solve():\n    while True:\n        pass\n",
-                encoding="utf-8")
-            started = time.time()
-            self.assertEqual(requested._exercised(
-                Path(folder), "from loops import solve\nsolve()\n",
-                "loops", 1), [])
-        self.assertLess(time.time() - started, 8)
-
     def test_a_doing_sure_together_is_code_talk(self):
         from unittest import mock
         from research.v698 import reading

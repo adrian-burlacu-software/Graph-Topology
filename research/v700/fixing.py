@@ -433,11 +433,6 @@ def _kept_what_it_gives(rows: list, original=()) -> list:
 #: another round of its answers (v697 `left`: a turn past its 300 s had its
 #: reply waited for by no one, and the next turn waited on it)
 PASS_SECONDS, ROUND_SECONDS = 150, 30
-#: and to begin fixing what crashed: the code model writing a function
-#: again, four times -- of how many crashing changes. The round took 90-120 s
-#: of CanItEdit's turns that ran it (2026-10-30): begun with 60 left, nine
-#: went past their 300, two with a right change chosen
-REPAIR_SECONDS, REPAIRED = 130, 2
 
 
 def _short(seconds: float) -> bool:
@@ -1501,54 +1496,6 @@ def _change_once(statement: str, held, subject, key=None,
         check(row)
         if (context or {}).get("score") is not None and row in passed:
             _scored(row, context)
-    # the changes that crash when run on what the request concerns (v698
-    # `requested.crashes`: an error from a line of their own, no `raise`):
-    # written again by the code model, told the call, the error and its line
-    # -- a crash is a fault whatever a guessed test expects. Of CanItEdit's
-    # changes with no right one written, 24 of 57 had candidates crashing
-    # in their own code (2026-10-29)
-    crashes, repair = ((context or {}).get("crashes"),
-                       (context or {}).get("repair"))
-    if crashes is not None and repair is not None and \
-            not _short(REPAIR_SECONDS):
-        crashing = []
-        for row in sorted((one for one in passed if one.get("own ok")),
-                          key=lambda one: -len(one.get("by") or ())):
-            if _short(REPAIR_SECONDS):
-                break
-            found = crashes(row["text"])
-            if found:
-                crashing.append((row, found[0]))
-            if len(crashing) >= REPAIRED:
-                break
-        for at, (crashed, crash) in enumerate(crashing):
-            # (each a time to write: the round's whole share of the turn)
-            if _short(REPAIR_SECONDS / 2):
-                break
-            for number, whole in enumerate(repair(crashed["text"], crash)):
-                if not (whole.startswith(head_) and whole.endswith(tail_)
-                        and len(whole) >= len(head_) + len(tail_)):
-                    continue
-                made = whole[len(head_):len(whole) - len(tail_)]
-                row = {"answer": f"(fixed, as {crash['call']} raised "
-                                 f"{crash['error']}) answer {number + 1}",
-                       "greedy": False, "round": -3}
-                tried.append(row)
-                if made in seen:
-                    seen[made]["by"].add(("repair", at, number))
-                    seen[made]["agree"] = len(seen[made]["by"])
-                    row["same as"] = seen[made]["index"]
-                    continue
-                row.update({"index": len(tried) - 1, "agree": 1,
-                            "by": {("repair", at, number)},
-                            "text": _with_imports(
-                                path, whole, (context or {}).get("imports")),
-                            "made": made, "touched": sorted(
-                                named & _changed_names(part, made))})
-                seen[made] = row
-                check(row)
-                if row in passed:
-                    _scored(row, context)
     if (context or {}).get("score") is not None:
         # the changes the tests of what was asked choose, over all of them
         chosen = _agreed_by_tests(passed, context.get("tests", 1),

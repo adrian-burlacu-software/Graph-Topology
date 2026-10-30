@@ -31,7 +31,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import time
 import zlib
 from pathlib import Path
 
@@ -367,101 +366,6 @@ def inputs(statement: str, held, path: str, keeps: bool = False) -> list:
     return [_code_of(reply) for reply in replies]
 
 
-#: what the code model is asked to write of a request that needs no output
-#: worked out: uses of the code, set up as the code needs them -- of 52
-#: tests it wrote of CanItEdit's changes with a right change written, 38
-#: failed the right change (the outputs it works out are wrong); a use
-#: asserts nothing, and shows a crash however the output should be
-EXERCISE = ("For example, asked \"Maze.solve should return the shortest "
-            "path\" of a file maze.py with `class Maze` built from a grid, "
-            "uses of what the request is about are\n```python\nfrom maze "
-            "import Maze\nm = Maze([[2, 0, 0], [1, 1, 0], [3, 0, 0]])\n"
-            "m.solve()\nMaze([[2, 3]]).solve()\n```\n-- each builds what it "
-            "needs with literal values, then uses it; nothing is asserted.\n"
-            "\nA programmer asked for this change to their Python project: "
-            "\"{statement}\"\nThe file {path} (module {module}), as it is "
-            "now:\n```python\n{text}\n```\nWrite 3 to 6 lines that use the "
-            "code as it will be once the change is made: import from "
-            "{module}, build what is needed with literal values the code "
-            "accepts, and use what the request is about, each use on a line "
-            "of its own. No asserts, no prints, no files. One ```python "
-            "block, nothing else.")
-#: uses the code model writes of a request
-EXERCISES = 4
-
-
-def exercises(statement: str, held, path: str) -> list:
-    """The code model's uses of the code the request concerns, each once
-    (`EXERCISE`): [code]."""
-    from research.v705 import coder
-    asked = EXERCISE.format(statement=statement, path=path,
-                            module=_module(path),
-                            text=held.files[path][:6000])
-    held_ = coder.big()
-    held_.torch.manual_seed(zlib.crc32(asked.encode()))
-    replies = held_.write([asked], longest=300, samples=EXERCISES,
-                          temperature=0.7)[0]
-    out = []
-    for reply in replies:
-        code = _code_of(reply)
-        try:
-            ast.parse(code)
-        except SyntaxError:
-            continue
-        if code and code not in out:
-            out.append(code)
-    return out
-
-
-#: a use run statement by statement: what each top-level expression gives,
-#: or the crash it meets from a line of the module's own that no `raise` is
-EXERCISED = """import sys, json, ast, traceback, importlib
-sys.path.insert(0, '.')
-own = importlib.import_module({module!r}).__file__
-space = {{"__name__": "__use__"}}
-exec("from " + {module!r} + " import *", space)
-code = {code!r}
-out = []
-for node in ast.parse(code).body:
-    source = (ast.get_source_segment(code, node) or "")[:200]
-    try:
-        if isinstance(node, ast.Expr):
-            value = eval(compile(ast.Expression(node.value), "<use>",
-                                 "eval"), space)
-            out.append({{"use": source, "gives": repr(value)[:200]}})
-        else:
-            exec(compile(ast.Module([node], []), "<use>", "exec"), space)
-    except Exception as bad:
-        frames = [one for one in traceback.extract_tb(bad.__traceback__)
-                  if one.filename == own]
-        found = {{"use": source, "raises": type(bad).__name__}}
-        # (a raise or an assert is the code refusing what it was given)
-        if frames and not (frames[-1].line or "").lstrip().startswith(
-                ("raise", "assert")):
-            found["crash"] = {{"call": source, "line": frames[-1].lineno,
-                               "code": (frames[-1].line or "").strip(),
-                               "error": (type(bad).__name__ + ": "
-                                         + str(bad))[:200]}}
-        out.append(found)
-        break
-print({said!r} + json.dumps(out))
-"""
-
-
-def _exercised(root: Path, code: str, module: str,
-               seconds: float = SECONDS) -> list:
-    """What a use (`exercises`) gives, statement by statement, in a
-    project's copy: [{use, gives} | {use, raises[, crash]}]."""
-    try:
-        done = subprocess.run(
-            [sys.executable, "-I", "-c", EXERCISED.format(
-                said=SAID, code=code, module=module)],
-            cwd=root, capture_output=True, text=True, timeout=seconds)
-        return _said(done.stdout) or []
-    except (subprocess.TimeoutExpired, ValueError, TypeError):
-        return []
-
-
 def tests(statement: str, held, path: str) -> list:
     """The code model's tests of the request, each once: [code]."""
     from research.v705 import coder
@@ -493,148 +397,6 @@ REWRITE = ("A programmer asked for this change to their Python project: "
            "changed -- in one ```python block, nothing else.")
 #: answers the code model writes of a change
 WRITTEN = 12
-
-
-#: what a call raises from a line of the module's own that no `raise` is:
-#: a fault of the code whatever the tests expect -- {call, error, line,
-#: code} each, of the calls that do
-CRASHES = """import sys, json, traceback, importlib
-sys.path.insert(0, '.')
-space = {{}}
-exec("from " + {module!r} + " import *", space)
-own = importlib.import_module({module!r}).__file__
-out = []
-for call in {calls!r}:
-    try:
-        eval(call, space)
-    except Exception as bad:
-        frames = [one for one in traceback.extract_tb(bad.__traceback__)
-                  if one.filename == own]
-        if frames and not (frames[-1].line or "").lstrip().startswith(
-                "raise"):
-            out.append({{"call": call, "line": frames[-1].lineno,
-                         "code": (frames[-1].line or "").strip(),
-                         "error": (type(bad).__name__ + ": " +
-                                   str(bad))[:200]}})
-print({said!r} + json.dumps(out))
-"""
-
-
-#: a test run as `RUN` runs it, and what it raises from a line of the
-#: module's own that no `raise` is: the test sets the code up as calls
-#: alone cannot (`Maze(grid).solve()`, not `solve()`)
-TEST_CRASH = """import sys, json, traceback, importlib
-sys.path.insert(0, '.')
-own = importlib.import_module({module!r}).__file__
-_test_space = {{"__name__": "__test__"}}
-exec("from " + {module!r} + " import *", _test_space)
-found = None
-try:
-    exec(compile({code!r}, "<test>", "exec"), _test_space)
-    for _name, _one in list(_test_space.items()):
-        if _name.startswith("test") and callable(_one):
-            _one()
-except Exception as bad:
-    frames = [one for one in traceback.extract_tb(bad.__traceback__)
-              if one.filename == own]
-    if frames and not (frames[-1].line or "").lstrip().startswith("raise"):
-        found = {{"line": frames[-1].lineno,
-                  "code": (frames[-1].line or "").strip(),
-                  "error": (type(bad).__name__ + ": " + str(bad))[:200]}}
-print({said!r} + json.dumps(found))
-"""
-
-
-def _test_crash(root: Path, code: str, module: str,
-                seconds: float = SECONDS) -> dict | None:
-    code = "\n".join(line for line in code.splitlines()
-                     if not re.match(r"\s*(import|from)\s+pytest\b", line))
-    try:
-        done = subprocess.run(
-            [sys.executable, "-I", "-c", TEST_CRASH.format(
-                said=SAID, code=code, module=module)],
-            cwd=root, capture_output=True, text=True, timeout=seconds)
-        found = _said(done.stdout)
-    except (subprocess.TimeoutExpired, ValueError, TypeError):
-        return None
-    if found:
-        # said as the call it was: the test's last line that calls
-        lines = [one.strip() for one in code.splitlines() if "(" in one]
-        found["call"] = (lines[-1] if lines else code.strip())[:200]
-    return found
-
-
-def _crashes(root: Path, calls: list, module: str,
-             seconds: float = SECONDS) -> list:
-    if not calls:
-        return []
-    try:
-        done = subprocess.run(
-            [sys.executable, "-I", "-c", CRASHES.format(
-                said=SAID, calls=calls, module=module)],
-            cwd=root, capture_output=True, text=True, timeout=seconds)
-        return _said(done.stdout) or []
-    except (subprocess.TimeoutExpired, ValueError, TypeError):
-        return []
-
-
-REPAIR = ("A programmer asked for this change to their Python project: "
-          "\"{statement}\"\nIn {path}, the change written gives this "
-          "function:\n```python\n{before}\n```\nRun as `{call}`, it raises "
-          "{error}, at the line `{code}`.\nWrite the whole function again, "
-          "fixed and changed as asked -- nothing else changed -- in one "
-          "```python block, nothing else.")
-#: answers the code model writes of a fix: enough to agree
-REPAIRS = 4
-#: of the tests of what was asked, how many a change's crash is looked for
-#: in
-CRASH_TESTS = 4
-#: how long a change's runs for a crash may take, all of them: a change that
-#: does not end (a maze solver looping) met every run's own timeout in turn,
-#: 40-80 s a change -- Dijkstra's 18 changes ~10 minutes (2026-10-29), where
-#: one that ends runs them all in under a second
-CRASH_SECONDS = 6
-
-
-def repaired(statement: str, changed: str, path: str, crash: dict) -> list:
-    """A change that crashes when run (`crashes`), written again by the
-    code model told the call, the error and its line: [the changed text of
-    `path`, the function it crashed in written again]. A crash is a fault
-    whatever the tests expect -- unlike a test the code model guessed."""
-    import ast
-
-    from research.v705 import coder, commits
-    try:
-        tree = ast.parse(changed)
-    except SyntaxError:
-        return []
-    found = [node for node in ast.walk(tree)
-             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-             and node.lineno <= crash["line"] <= (node.end_lineno or 0)]
-    if not found:
-        return []
-    node = min(found, key=lambda one: one.end_lineno - one.lineno)
-    lines = changed.splitlines(keepends=True)
-    before = "".join(lines[node.lineno - 1:node.end_lineno]).strip(
-        "\n").lstrip()
-    asked = REPAIR.format(statement=statement, path=path, before=before,
-                          call=crash["call"], error=crash["error"],
-                          code=crash["code"])
-    held_ = coder.big()
-    held_.torch.manual_seed(zlib.crc32(asked.encode()))
-    try:
-        replies = held_.write([asked], longest=900, samples=REPAIRS,
-                              temperature=0.7)[0]
-    except held_.torch.cuda.OutOfMemoryError:
-        held_.torch.cuda.empty_cache()
-        return []
-    out = []
-    for reply in replies:
-        code = commits._code_of(reply)
-        fixed = commits._placed(code, before, changed) if code else None
-        if fixed and fixed != changed:
-            out.append(fixed)
-    return out
 
 
 def rewritten(statement: str, held, path: str, name: str | None) -> list:
@@ -1017,49 +779,6 @@ def checker(statement: str, held, path: str, keeps: bool = False,
             f"it is not written {W.said([way], 'python')}"
             for way in unwritten(changed, held.files[path], ways)]
 
-    uses: list = []
-
-    def crashes(changed: str) -> list:
-        """What the calls the change is run on raise from its own lines
-        (`CRASHES`): a fault whatever the tests expect -- the first found,
-        in `CRASH_SECONDS` of runs."""
-        if not uses:
-            # uses of the code, set up as it needs (`exercises`): what a
-            # change crashes on whatever its output should be -- of
-            # CanItEdit's wrong candidates, 165 of 629 crashed under them,
-            # 9 of 98 right ones. Written only when looked for: 12-30 s of
-            # the code model's, which a turn with no repair never waits on
-            try:
-                uses.extend(exercises(statement, held, path) or [None])
-            except Exception:                   # noqa: BLE001
-                uses.append(None)
-        module = _module(path)
-        # uses first, then the calls, then the tests of what was asked,
-        # which set the code up
-        runs = [(lambda seconds, code=code: [
-                    step["crash"] for step in
-                    _exercised(place, code, module, seconds)
-                    if "crash" in step])
-                for code in uses if code is not None]
-        runs.append(lambda seconds: _crashes(place, calls, module, seconds))
-        runs += [(lambda seconds, code=code: [
-                     one for one in [_test_crash(place, code, module, seconds)]
-                     if one])
-                 for code in kept[:CRASH_TESTS]]
-        place = Path(tempfile.mkdtemp(prefix="requested-"))
-        until = time.time() + CRASH_SECONDS
-        try:
-            _copy(held, place, {path: changed})
-            for run in runs:
-                if time.time() >= until:
-                    return []
-                found = run(until - time.time())
-                if found:
-                    return found
-            return []
-        finally:
-            shutil.rmtree(place, ignore_errors=True)
-
     def verify_files(changes: dict, least: int | None = None) -> str:
         """'' where the project, these files so changed, holds: its own
         tests, and `least` of the kept (half of them where not said)."""
@@ -1086,7 +805,6 @@ def checker(statement: str, held, path: str, keeps: bool = False,
                 "why": "no test tells the project from the change"}
     return {"verify": verify if kept else None,
             "verify files": verify_files, "score": score, "lacks": lacks,
-            "crashes": crashes,
             "tests": written, "kept": kept, "left": left, "own": own,
             "need": need, "calls": calls, "original": original,
             "interface": asked, "stated": len(told), "said": said,

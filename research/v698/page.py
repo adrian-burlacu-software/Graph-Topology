@@ -525,13 +525,6 @@ def _act(read, text: str, session, memory) -> dict | None:
                                        "need": check["need"]}}
                         if asked_ways:
                             context["said"] = writing
-                        # what crashes when run, fixed by the code model
-                        # told how (`requested.repaired`)
-                        context["crashes"] = check.get("crashes")
-                        context["repair"] = (
-                            lambda changed, crash, path=path_:
-                            requested.repaired(writing, changed, path,
-                                               crash))
                 try:
                     made = fixing.change(text, held, subject, key,
                                          spans=read.spans, context=context)
