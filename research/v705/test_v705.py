@@ -925,6 +925,46 @@ class VerifyTests(unittest.TestCase):
             del here._Dies
 
 
+class MissingTests(unittest.TestCase):
+    """Where an answer's missing words are known, without a model."""
+
+    def test_a_word_is_said_whole(self):
+        from research.v705.missing import says
+        self.assertTrue(says("LATE_FEE = 7.", "7"))
+        self.assertFalse(says("rental/tools.py:17 and tools7", "7"))
+        self.assertFalse(says("TooManyHires", "Hire"))
+
+    def test_found_however_deep_and_nowhere_else(self):
+        from types import SimpleNamespace
+        from research.v705.missing import found_in
+        scope = {"index": {"symbols": [{"name": "Hire"}, {"name": "Tool"}]},
+                 "other": [SimpleNamespace(name="Hire")]}
+        self.assertEqual(found_in(scope, ["Hire", "Tool"]),
+                         [("index[*][*][*]", ["Hire", "Tool"])])
+
+    def test_a_sibling_is_filled_by_name_and_shown_source_is_not_said(self):
+        import types
+        from research.v705.missing import siblings
+        module = types.ModuleType("made")
+
+        def author(held):
+            return "nothing"
+
+        def says_it(held):
+            return {"said": f"The classes: {held}."}
+
+        def only_shows(held):
+            return {"code": f"class {held}:\n    pass\n"}
+
+        def needs_more(held, other):
+            return f"{held}"
+        for one in (author, says_it, only_shows, needs_more):
+            one.__module__ = "made"
+            setattr(module, one.__name__, one)
+        got = siblings(module, "author", {"held": "Hire"}, ["Hire"])
+        self.assertEqual([one["function"] for one in got], ["says_it"])
+
+
 class CoreFixTests(unittest.TestCase):
     """What the probes of `rental` found wrong in the core, without a model."""
 
