@@ -86,6 +86,7 @@ def diagnose(case: dict, found_places: dict | None = None) -> dict:
                       "file": place.get("file")})
     turns = case.get("turns") or [case["said"]]
     return {"said": case["said"].split("\n")[0], "n": case.get("n"),
+            "part": case.get("part"),
             # the turns whole: said again, and found among the test's own
             # (`inside.cases_of`), with the code pasted under the first line
             # -- `how many times does this loop run?` alone was no case of

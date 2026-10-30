@@ -376,6 +376,9 @@ class AuthorTests(unittest.TestCase):
                 "part": "project functions",
                 "acts": {"read": [["teach", 0.9]], "taken": "generic"}}
         self.assertIsNone(doing._lost(case, [], {}))
+        # and the part reaches what moves a finding to its author
+        self.assertEqual(doing.diagnose({**case, "turns": [case["said"]]},
+                                        {})["part"], "project functions")
 
 
 class ExamTests(unittest.TestCase):
