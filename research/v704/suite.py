@@ -45,6 +45,13 @@ def N(area, turns, check):
                         check, False)
 
 
+def known() -> list:
+    """The cases the improving may look at: the conversation test's and the
+    probes' SEEN -- never their HELD (`probes`)."""
+    from research.v704.probes import SEEN
+    return SUITE + SEEN
+
+
 LIB = "import sys; sys.path.insert(0, '.'); "
 
 SUITE = [

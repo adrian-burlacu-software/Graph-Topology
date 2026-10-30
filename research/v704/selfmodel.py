@@ -48,6 +48,19 @@ AREAS = {
     "follow-up": "following on from what was just said",
     "asks": "asking when a request is unclear, and declining what is "
             "unsafe",
+    # the probes' families (`probes`)
+    "inventory": "counting and listing what a file of a project holds",
+    "absent": "saying that a name is not in a project",
+    "run": "saying what a function of a project gives for what is said",
+    "edge": "saying what a function does at its edges",
+    "raises": "saying what a function raises and when",
+    "depends": "saying what depends on what in a project",
+    "tested": "saying what the tests of a project cover",
+    "data-sum": "summing up a project's data",
+    "data-pick": "picking out the rows of a project's data asked for",
+    "follow": "following a question on from the answer before",
+    "change": "making a small change to a project's code",
+    "unplaced": "asking when a change names nothing to change",
 }
 ROUTING = "understanding which kind of thing is asked, and sending it to " \
           "the right part"

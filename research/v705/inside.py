@@ -982,7 +982,7 @@ def _project(turns: list) -> bool:
     project (v704 `suite`: the library fixture)."""
     from research.v704 import suite
     return any(item.turns == list(turns) and item.project
-               for item in suite.SUITE)
+               for item in suite.known())
 
 
 def _project_turn(turns: list, check) -> tuple:
@@ -1002,11 +1002,15 @@ def _project_turn(turns: list, check) -> tuple:
     from research.v698 import project as Pj
     from research.v698 import server
     from research.v704.converse import FIXTURE, text_of
+    from research.v704.suite import known
     conversations = server.Handler.conversations
     if conversations is None:
         return False, "no server to say it to"
     folder = Path(tempfile.mkdtemp(prefix="v705-replay-"))
-    root = folder / "library"
+    # the project the case is asked of
+    fixture = next((FIXTURE.parent / item.fixture for item in known()
+                    if item.turns == list(turns)), FIXTURE)
+    root = folder / fixture.name
     sid = f"v705-scratch-{uuid.uuid4().hex[:12]}"
 
     def apart():
@@ -1015,11 +1019,11 @@ def _project_turn(turns: list, check) -> tuple:
         FRESH.set(True)
         typed = getattr(typing._TYPED, "text", None)
         try:
-            shutil.copytree(FIXTURE, root,
+            shutil.copytree(fixture, root,
                             ignore=shutil.ignore_patterns("__pycache__"))
             files = {one.relative_to(root).as_posix(): one.read_text(
                 encoding="utf-8") for one in root.rglob("*") if one.is_file()}
-            Pj.put(sid, files, "library", whole=True, root=str(root))
+            Pj.put(sid, files, fixture.name, whole=True, root=str(root))
             turn: dict = {}
             # said under the turn's own hold of the store (this thread holds
             # it already: `say` would wait on itself)
@@ -1060,7 +1064,7 @@ def cases_of(case: dict, function) -> list:
     run = selfmodel.RUNS / f"{model.get('run')}.jsonl"
     turns = case.get("turns") or list(case.get("before") or []) + [
         case["said"]]
-    found = [item for item in suite.SUITE if item.turns == turns]
+    found = [item for item in suite.known() if item.turns == turns]
     if case.get("check") is not None:
         # a case found by a way of looking (`evidence`) brings its check
         # -- a variant, the conversation it was made from as well
@@ -1088,7 +1092,8 @@ def cases_of(case: dict, function) -> list:
                     or not operators & {one["operator"] for one in
                                         row.get("fired") or []}:
                 continue
-            same = [one for one in suite.SUITE if one.turns == row["turns"]]
+            same = [one for one in suite.known()
+                    if one.turns == row["turns"]]
             if same:
                 out.append((same[0].turns, same[0].check, True))
     return out

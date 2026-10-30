@@ -295,6 +295,114 @@ def compared(before: dict, after: dict) -> dict:
             "gained": gained, "lost": lost}
 
 
+#: what a change of its own may not touch: the test it is measured by
+EXAM = ("research/v704/probes.py", "research/v704/fixtures/")
+
+
+def _tampered(files: list) -> list:
+    """The files of a change that are of the test measuring it."""
+    return [one for one in files if one.startswith(EXAM)]
+
+
+def _said_to_one(label: str, *suite: str) -> dict:
+    """A test said to one server of the code as it is on disk: {n: verdict}.
+    After, the one the goal is said to is up."""
+    from research.v704 import converse
+    _stop()
+    [url] = _start(1)
+    try:
+        converse.main(["--url", url, "--label", label, *suite])
+    finally:
+        _stop()
+        _start()
+    return _verdicts(label)
+
+
+def _verdicts(label: str) -> dict:
+    from research.v704 import converse
+    rows = (converse.OUT / f"{label}.jsonl").open(encoding="utf-8")
+    return {one["n"]: one["verdict"] for one in map(json.loads, rows)}
+
+
+def judged(stamp: str, round_: int, seen: dict, held: dict,
+           core: dict) -> dict:
+    """A change of its own against the probes (`probes`): SEEN first, where
+    it must gain; then HELD and the core, where it may lose nothing. {better,
+    seen, held, core} as far as measured, cheapest first; what HELD gains is
+    the evidence the change is general, and chooses nothing."""
+    out = {"seen": compared(seen, _said_to_one(
+        f"loop-{stamp}-{round_}-seen", "--suite", "probes"))}
+    out["better"] = bool(out["seen"]["gained"]) and not out["seen"]["lost"]
+    if not out["better"]:
+        return out
+    out["held"] = compared(held, _said_to_one(
+        f"loop-{stamp}-{round_}-held", "--suite", "probes-held"))
+    out["better"] = not out["held"]["lost"]
+    if not out["better"]:
+        return out
+    out["core"] = compared(core, _said_to_one(
+        f"loop-{stamp}-{round_}-core", "--core"))
+    out["better"] = not out["core"]["lost"]
+    return out
+
+
+def on_probes(rounds: int, seen: str, held: str, core: str) -> list:
+    """The loop with the probes as its measure: the self-model built of SEEN
+    alone, a change kept where `judged` says it is better. `seen`, `held`,
+    `core`: runs already made on the code as it is."""
+    from research.v704 import selfmodel
+    if _changed():
+        raise SystemExit("the tree is not as committed: commit it first, so "
+                         "what the loop changes is the loop's alone")
+    selfmodel.build(seen)
+    before = {"seen": _verdicts(seen), "held": _verdicts(held),
+              "core": _verdicts(core)}
+    _restart()
+    stamp = time.strftime("%Y%m%d-%H%M")
+    rows = []
+    for round_ in range(1, rounds + 1):
+        started = time.time()
+        row = {"round": round_, "measure": seen,
+               "right": sum(v == "right" for v in before["seen"].values()),
+               "turns": goal(f"loop-{stamp}-{round_}")}
+        files = _changed()
+        row["changed"] = files
+        if not files:
+            row.update(outcome="nothing changed",
+                       seconds=round(time.time() - started))
+            _logged(row)
+            rows.append(row)
+            break
+        row["diff"] = _git("diff")[:20000]
+        _stop()
+        passed, said = (False, "") if _tampered(files) else tests()
+        row["tests"] = said
+        found = judged(stamp, round_, before["seen"], before["held"],
+                       before["core"]) if passed else {"better": False}
+        row["judged"] = found
+        if found["better"]:
+            row["measured"] = found["seen"]
+            _kept(row, files)
+            _git("push", "-q")
+            row["outcome"] = "kept"
+            label = f"loop-{stamp}-{round_}"
+            before = {key: _verdicts(f"{label}-{key}") for key in before}
+            selfmodel.build(f"{label}-seen")
+        else:
+            _reverted(files)
+            row["outcome"] = ("reverted: it changed its own test"
+                              if _tampered(files) else
+                              "reverted: the unit tests fail" if not passed
+                              else "reverted: the probes are not better")
+            _restart()
+        row["seconds"] = round(time.time() - started)
+        _logged(row)
+        rows.append(row)
+        print(json.dumps({key: row.get(key) for key in (
+            "round", "outcome", "changed", "judged", "tests")}), flush=True)
+    return rows
+
+
 def _kept(row: dict, files: list) -> None:
     measured = row["measured"]
     subject = (f"v705 loop: its own change kept -- {len(measured['gained'])} "
@@ -396,7 +504,15 @@ def main(argv=None) -> int:
     parser.add_argument("--resume", default=None,
                         help="a conversation the running server holds, "
                              "gone on with")
+    parser.add_argument("--probes", nargs=3, default=None,
+                        metavar=("SEEN", "HELD", "CORE"),
+                        help="the probes as the measure: runs of them and "
+                             "of the core on the code as it is")
     options = parser.parse_args(argv)
+    if options.probes:
+        for row in on_probes(options.rounds, *options.probes):
+            print(row["round"], row["outcome"])
+        return 0
     for row in run(options.rounds, options.baseline, options.resume):
         print(row["round"], row["outcome"])
     return 0

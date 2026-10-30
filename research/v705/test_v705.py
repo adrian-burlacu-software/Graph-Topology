@@ -352,6 +352,27 @@ class _Process:
         return self.code
 
 
+class ExamTests(unittest.TestCase):
+    """A change of its own may not touch what measures it."""
+
+    def test_a_change_of_the_probes_is_tampering(self):
+        from research.v705 import loop
+        self.assertEqual(loop._tampered([
+            "research/v698/page.py", "research/v704/probes.py",
+            "research/v704/fixtures/clinic/clinic/visits.py"]), [
+            "research/v704/probes.py",
+            "research/v704/fixtures/clinic/clinic/visits.py"])
+        self.assertEqual(loop._tampered(["research/v704/doing.py"]), [])
+
+    def test_the_improving_knows_seen_and_never_held(self):
+        from research.v704 import probes, suite
+        known = [item.turns for item in suite.known()]
+        self.assertIn(probes.SEEN[0].turns, known)
+        self.assertFalse([item for item in probes.HELD
+                          if item.turns in known])
+        self.assertEqual(len(probes.SEEN), len(probes.HELD))
+
+
 class AgainTests(unittest.TestCase):
     """A server the loop started is started again where its card was lost
     (v698 `server.RESTART`), as the editor starts it again."""
