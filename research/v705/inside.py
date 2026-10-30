@@ -1315,6 +1315,73 @@ def lost(session, turns: list, phrase: str) -> dict | None:
     return found[0] if found else None
 
 
+#: of what a reply says, how much a call must have given back to be its
+#: author: its start, where a sentence's words are their own
+AUTHORED = 40
+
+
+def wrote(calls: list, reply: str) -> dict | None:
+    """Of calls in the order they returned ({function, file, line, gave}),
+    the first to give back the words a reply begins with: the deepest that
+    had them, where they were written -- what gave them on only returned
+    later."""
+    said = " ".join(reply.split())[:AUTHORED].lower()
+    if not said:
+        return None
+    for call in calls:
+        if said in " ".join(call["gave"].split()).lower():
+            return call
+    return None
+
+
+def author(turns: list) -> dict | None:
+    """The function of its own code that wrote what a project's case was
+    answered with: every call returning text watched while the case is said
+    again (`_project_turn`), the deepest that gave back the reply's words
+    (`wrote`). A wrong answer is changed where it is made -- `page.replies`,
+    which passes every answer on, was asked 61 changes for `how many
+    functions are there in tools.py?` and could not hold one. {function,
+    file, line}, else None."""
+    calls: list = []
+    places: dict = {}
+
+    def local(frame, event, arg):
+        if event == "return" and isinstance(arg, str) and len(arg) >= 8:
+            calls.append({"function": frame.f_code.co_qualname,
+                          "file": places[frame.f_code.co_filename],
+                          "line": frame.f_lineno, "gave": arg})
+        return local
+
+    def tracer(frame, event, arg):
+        if event != "call":
+            return None
+        name = frame.f_code.co_filename
+        path = places.get(name, False)
+        if path is False:
+            path = _relative(name) if "research" in name else None
+            if path and (not path.startswith("research/") or
+                         "/test" in path):
+                path = None
+            places[name] = path
+        if not path:
+            return None
+        frame.f_trace_lines = False
+        return local
+
+    previous = sys.gettrace()
+    sys.settrace(tracer)
+    try:
+        _, reply = _project_turn(list(turns), lambda turn, root: True)
+    finally:
+        sys.settrace(previous)
+    found = wrote(calls, reply)
+    if found is None:
+        return None
+    # a function within a function is its own name in the file
+    return {"function": found["function"].rpartition("<locals>.")[2],
+            "file": found["file"], "line": found["line"]}
+
+
 def _relative(path: str | None) -> str | None:
     """A file of the architecture's own code, as the project names it;
     None for one outside it (a library's)."""

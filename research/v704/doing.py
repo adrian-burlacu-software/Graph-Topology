@@ -111,6 +111,11 @@ def _lost(case: dict, tried: list, found_places: dict) -> dict | None:
     read, taken = acts.get("read") or [], acts.get("taken")
     if not read or not taken or read[0][0] == taken:
         return None
+    # a part of the project answered it: nothing was lost on its way, what
+    # was said is wrong (`how many functions are there in tools.py?`, sent
+    # to the conversation's reader, which no reading of would answer)
+    if (case.get("part") or "").startswith("project"):
+        return None
     act, chance = read[0]
     if any(step["operator"] == act for step in tried):
         return None
@@ -437,6 +442,27 @@ def _look(state: dict, weak: dict | None) -> list:
     return lines
 
 
+def _to_the_author(shared: dict, lines: list) -> None:
+    """A finding that a part of the project answered wrongly, moved to the
+    function that wrote the answer (v705 `inside.author`), where it is its
+    own code."""
+    case = shared.get("case") or {}
+    if shared.get("how") != "answered" or "authored" in shared or \
+            not (case.get("part") or "").startswith("project"):
+        return
+    from research.v705 import inside
+    turns = list(case.get("turns") or list(case["before"]) + [case["said"]])
+    try:
+        found = inside.author(turns)
+    except Exception:                               # noqa: BLE001
+        found = None
+    shared["authored"] = bool(found)
+    if found:
+        shared.update(function=found["function"], file=found["file"])
+        lines.append(f"What \"{case['said']}\" was answered with was written "
+                     f"by {found['function']} in {found['file']}.")
+
+
 def _step(state: dict, step: dict, change, held, debug=None) -> list:
     kind = step["kind"]
     if kind in ("change", "build"):
@@ -453,6 +479,8 @@ def _step(state: dict, step: dict, change, held, debug=None) -> list:
                     f"{file or 'the project'} is not one I hold, so I left "
                     f"it."]
         lines = []
+        _to_the_author(shared, lines)
+        file = shared.get("file")
         looked = _inside(state, debug)
         if looked:
             # each call followed to where the nothing came from, the last
@@ -490,9 +518,18 @@ def _step(state: dict, step: dict, change, held, debug=None) -> list:
             if at:
                 asked = request_for(shared or None, target)
                 lines.append(f"{said} So, one call up:")
-            said, changed = change(asked, target.get("function"),
-                                   target.get("file"),
-                                   (shared.get("case") or {}).get("said"))
+            try:
+                said, changed = change(asked, target.get("function"),
+                                       target.get("file"),
+                                       (shared.get("case") or {}).get("said"))
+            except (MemoryError, RuntimeError) as bad:
+                # the card full (a torch OutOfMemoryError is a RuntimeError):
+                # this place not met -- a look at every other still to come
+                if not isinstance(bad, MemoryError) and \
+                        "out of memory" not in str(bad).lower():
+                    raise
+                said, changed = (f"I ran out of memory changing "
+                                 f"{target.get('function')}.", False)
             lines.append(f"{step['said'] if not at else 'Then'}: I asked "
                          f"myself to {asked}.")
             if changed:

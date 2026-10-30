@@ -251,7 +251,15 @@ def goal(sid: str, resume: bool = False) -> list:
     said = "yes" if resume else GOAL
     for _ in range(STEPS):
         from research.v704.converse import code_of, text_of
-        turn = _post("/api/say", {"sid": sid, "q": said})
+        try:
+            turn = _post("/api/say", {"sid": sid, "q": said})
+        except urllib.error.HTTPError as bad:
+            # a turn the server could not say ends this conversation, not
+            # the run: what was changed before it is still measured
+            turns.append({"said": said, "reply": f"server {bad.code}",
+                          "status": "failed",
+                          "at": time.strftime("%H:%M:%S")})
+            break
         reply = " ".join(text_of(turn).split())
         status = (code_of(turn).get("answer") or {}).get("status")
         turns.append({"said": said, "reply": reply, "status": status,

@@ -352,6 +352,32 @@ class _Process:
         return self.code
 
 
+class AuthorTests(unittest.TestCase):
+    """A wrong answer is changed where it was written."""
+
+    def test_the_deepest_call_with_the_words_wrote_them(self):
+        from research.v705 import inside
+        calls = [
+            {"function": "noise", "file": "a.py", "line": 1,
+             "gave": "something else entirely, not said"},
+            {"function": "_listed", "file": "b.py", "line": 2,
+             "gave": "15 function(s): Hire.ends (rental/hires.py:27)"},
+            {"function": "replies", "file": "c.py", "line": 3,
+             "gave": "15 function(s): Hire.ends (rental/hires.py:27), more"}]
+        self.assertEqual(inside.wrote(
+            calls, "15 function(s):  Hire.ends (rental/hires.py:27)")
+            ["function"], "_listed")
+        self.assertIsNone(inside.wrote(calls, "never written by any call"))
+        self.assertIsNone(inside.wrote(calls, ""))
+
+    def test_a_project_part_answering_loses_no_reading(self):
+        from research.v704 import doing
+        case = {"said": "how many functions are there in tools.py?",
+                "part": "project functions",
+                "acts": {"read": [["teach", 0.9]], "taken": "generic"}}
+        self.assertIsNone(doing._lost(case, [], {}))
+
+
 class ExamTests(unittest.TestCase):
     """A change of its own may not touch what measures it."""
 
