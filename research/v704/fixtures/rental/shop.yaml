@@ -1,0 +1,6 @@
+web:
+  port: 7070
+shop:
+  name: Ironbridge Hire
+  hire_days: 5
+  max_hires: 4

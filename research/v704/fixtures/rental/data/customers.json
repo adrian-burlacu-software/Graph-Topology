@@ -1,0 +1,6 @@
+{"customers": [
+ {"name": "Ines Moreau", "town": "Ashby", "trade": true},
+ {"name": "Tomas Reyes", "town": "Corby", "trade": false},
+ {"name": "Wen Li", "town": "Ashby", "trade": true},
+ {"name": "Sade Bello", "town": "Derby", "trade": false}
+]}

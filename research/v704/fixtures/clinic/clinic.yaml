@@ -1,0 +1,6 @@
+web:
+  port: 6060
+clinic:
+  name: Lakeside Clinic
+  visit_price: 40
+  daily_limit: 8

@@ -1,0 +1,8 @@
+{"patients": [
+ {"number": "P-101", "name": "Noor Haddad", "age": 71, "ward": "north"},
+ {"number": "P-102", "name": "Elio Rossi", "age": 34, "ward": "south"},
+ {"number": "P-103", "name": "Greta Lund", "age": 58, "ward": "north"},
+ {"number": "P-104", "name": "Kofi Mensah", "age": 66, "ward": "east"},
+ {"number": "P-105", "name": "Aiko Sato", "age": 29, "ward": "south"},
+ {"number": "P-106", "name": "Ravi Nair", "age": 45, "ward": "north"}
+]}

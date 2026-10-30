@@ -1,0 +1,6 @@
+code,name,group,value,fee
+D1,Hammer Drill,power,240,18
+S2,Circular Saw,power,180,15
+L3,Long Ladder,access,120,9
+M4,Cement Mixer,site,600,35
+W5,Pressure Washer,power,300,22
