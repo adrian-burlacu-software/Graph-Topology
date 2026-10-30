@@ -434,8 +434,10 @@ def _kept_what_it_gives(rows: list, original=()) -> list:
 #: reply waited for by no one, and the next turn waited on it)
 PASS_SECONDS, ROUND_SECONDS = 150, 30
 #: and to begin fixing what crashed: the code model writing a function
-#: again, four times -- of how many crashing changes
-REPAIR_SECONDS, REPAIRED = 60, 2
+#: again, four times -- of how many crashing changes. The round took 90-120 s
+#: of CanItEdit's turns that ran it (2026-10-30): begun with 60 left, nine
+#: went past their 300, two with a right change chosen
+REPAIR_SECONDS, REPAIRED = 130, 2
 
 
 def _short(seconds: float) -> bool:
