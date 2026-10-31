@@ -965,6 +965,46 @@ class MissingTests(unittest.TestCase):
         self.assertEqual([one["function"] for one in got], ["says_it"])
 
 
+class ReasoningTests(unittest.TestCase):
+    """What decided a reply, and what tells the wanted records apart."""
+
+    ROWS = [{"name": "Hire", "kind": "class", "file": "rental/hires.py"},
+            {"name": "TooManyHires", "kind": "class",
+             "file": "rental/hires.py"},
+            {"name": "late_charge", "kind": "function",
+             "file": "rental/hires.py"},
+            {"name": "Tool", "kind": "class", "file": "rental/tools.py"}]
+
+    def test_two_fields_pick_out_what_the_message_says(self):
+        from research.v705.missing import selectors
+        got = selectors({"index": self.ROWS}, ["Hire", "TooManyHires"],
+                        "list the classes in hires.py")
+        self.assertEqual(got[0]["fields"],
+                         {"file": "rental/hires.py", "kind": "class"})
+        self.assertEqual(got[0]["said"], ["file", "kind"])
+
+    def test_nothing_tells_them_apart_is_no_selector(self):
+        from research.v705.missing import selectors
+        self.assertEqual(selectors({"index": self.ROWS},
+                                   ["Hire", "late_charge", "Tool"], "x"), [])
+
+    def test_a_branch_and_a_table_are_what_decided(self):
+        from research.v705.missing import decided
+        source = ('def about(aspect, subject):\n'
+                  '    if subject == "file":\n'
+                  '        return ANSWERS[aspect](subject)\n'
+                  '    if aspect == "size":\n'
+                  '        return 1\n')
+        got = decided(source, 10, 12, {
+            "aspect": "where", "subject": "file",
+            "ANSWERS": {"where": 1, "size": 2}})
+        tests = {one["test"]: one for one in got}
+        self.assertEqual(tests['subject == "file"']["took"], "then")
+        self.assertEqual(tests["ANSWERS[aspect]"]["values"],
+                         {"aspect": "'where'"})
+        self.assertEqual(tests["ANSWERS[aspect]"]["other"], ["size", "where"])
+
+
 class CoreFixTests(unittest.TestCase):
     """What the probes of `rental` found wrong in the core, without a model."""
 
