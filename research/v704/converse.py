@@ -467,7 +467,8 @@ def main(argv=None) -> int:
     parser.add_argument("--suite", default="suite",
                         choices=("suite", "heldout", "canitedit",
                                  "cruxeval-o", "cruxeval-i", "wtq", "sparc",
-                                 "repoqa", "aider", "probes", "probes-held"),
+                                 "repoqa", "aider", "probes", "probes-held",
+                                 "curriculum"),
                         help="heldout: fixtures/garden, kept apart from "
                              "the work it measures; canitedit: CanItEdit's "
                              "changes, each its own project (canitedit.py)")
@@ -504,6 +505,10 @@ def main(argv=None) -> int:
         from research.v704.probes import SEEN as SUITE
     elif options.suite == "probes-held":
         from research.v704.probes import HELD as SUITE
+    elif options.suite == "curriculum":
+        # its own questions, of the projects it may look at (v706)
+        from research.v706 import curriculum
+        SUITE = curriculum.suite()
     elif options.suite == "aider":
         from research.v704 import aider
         SUITE = aider.suite()

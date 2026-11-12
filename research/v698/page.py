@@ -654,6 +654,14 @@ def _act(read, text: str, session, memory) -> dict | None:
                 return asking.ran(held, subject, text, text[start:close + 1])
             return asking._outcome(held, subject, text)
         return None
+    # a way it has learnt to answer by (v706 `ways`: a query over the
+    # project, found by search from a case it had wrong), where one fits all
+    # the message says
+    from research.v706 import ways as learnt
+    found = learnt.answer(text, held, key, turn) if read.act == "ask" else None
+    if found is not None:
+        found["code"]["read"] = read.json()
+        return found
     return asking.answered_read(read, text, held, space, turn, key)
 
 
@@ -1213,6 +1221,14 @@ def replies(session) -> list:
                 return False
             if found.looked.get("of the record"):
                 return True
+            # what follows on from the code just talked of, where a way it
+            # has learnt answers it from that (`where is LATE_FEE defined?`
+            # ... `and what is its value?`, answered with the data's column
+            # of that name): the code's
+            from research.v706 import ways as learnt
+            if learnt.follows(typed(memory), Pj.project(_key(session)),
+                              _key(session), v697_page._turn(memory)):
+                return False
             # a name shaped as code (`ORDER_LIMIT`), said exactly as the
             # project's code defines it, is the code's question where the
             # data's answer is a place spelled otherwise (`where is
