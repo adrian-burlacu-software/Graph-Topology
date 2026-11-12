@@ -1,0 +1,115 @@
+{
+ "ways": [
+  {
+   "from": "symbols",
+   "steps": [
+    [
+     "use",
+     "kind_file"
+    ]
+   ],
+   "give": [
+    "list",
+    "name"
+   ],
+   "learnt from": "list the classes in hires.py",
+   "fixture": "rental"
+  },
+  {
+   "from": "symbols",
+   "steps": [
+    [
+     "is",
+     "name",
+     "?"
+    ],
+    [
+     "linked",
+     "raises",
+     "name",
+     "name",
+     [
+      [
+       "has",
+       "raise"
+      ]
+     ]
+    ]
+   ],
+   "give": [
+    "any"
+   ],
+   "learnt from": "does clean_code raise anything?",
+   "fixture": "rental"
+  },
+  {
+   "from": "raises",
+   "steps": [
+    [
+     "is",
+     "name",
+     "?"
+    ]
+   ],
+   "give": [
+    "pick",
+    "?"
+   ],
+   "learnt from": "which exception does hire raise?",
+   "fixture": "rental"
+  },
+  {
+   "from": "symbols",
+   "steps": [
+    [
+     "use",
+     "kind_file"
+    ],
+    [
+     "linked",
+     "uses",
+     "name",
+     "name",
+     [
+      [
+       "has",
+       "test"
+      ]
+     ]
+    ]
+   ],
+   "give": [
+    "list",
+    "name"
+   ],
+   "learnt from": "which functions in tools.py have tests?",
+   "fixture": "rental"
+  },
+  {
+   "from": "last",
+   "steps": [],
+   "give": [
+    "pick",
+    "?"
+   ],
+   "learnt from": "and what is its value?",
+   "fixture": "rental"
+  }
+ ],
+ "library": {
+  "kind_file": {
+   "steps": [
+    [
+     "is",
+     "kind",
+     "?"
+    ],
+    [
+     "is",
+     "file",
+     "?"
+    ]
+   ]
+  }
+ }
+}
