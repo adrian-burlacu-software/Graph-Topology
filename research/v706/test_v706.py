@@ -41,6 +41,12 @@ class QueryTests(unittest.TestCase):
         self.assertIn("TooManyHires", Q.said(bound, rows, value))
         self.assertIsNone(Q.bind(way, self.world, "where is hires.py?"))
 
+    def test_calls_and_parameters_are_of_the_world(self):
+        calls = {(row["name"], row["call"]) for row in self.world["calls"]}
+        self.assertIn(("Hire.cost", "deposit"), calls)
+        self.assertIn({"name": "late_charge", "file": "rental/hires.py",
+                       "param": "days"}, self.world["params"])
+
     def test_the_library_is_used_by_name(self):
         library = {"kind_file": {"steps": [["is", "kind", "?"],
                                            ["is", "file", "?"]]}}

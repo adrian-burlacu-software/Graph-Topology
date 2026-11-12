@@ -10,8 +10,9 @@ running, keep as data (`ways.json`), and compress into its own vocabulary
 
 **The world** (`world`): what a project is, as collections of flat records --
 `symbols` (name, kind, file, line, lines, doc, value, owner), `uses` (name,
-file, line, user, use, test), `raises` (name, file, line, raise), `files`
-(file, lines), each collection of its
+file, line, user, use, test), `raises` (name, file, line, raise), `calls`
+(name, file, call, of), `params` (name, file, param), `files` (file, lines),
+each collection of its
 data files (`data/tools.csv:`), and `last`, the records the turn before was
 about.
 
@@ -73,6 +74,21 @@ def _raises(files: dict) -> list:
     return out
 
 
+def _calls(held) -> list:
+    """Who calls what, of the project's own: the caller, and the call."""
+    out = []
+    try:
+        found = held.calls()
+    except Exception:                               # noqa: BLE001
+        return out
+    for one in found:
+        file, _, name = str(one.get("from", "")).partition("#")
+        of, _, call = str(one.get("to", "")).partition("#")
+        if name and call:
+            out.append({"name": name, "file": file, "call": call, "of": of})
+    return out
+
+
 def world(held, last=None) -> dict:
     """The project as collections of records. `last`: the records the turn
     before was about."""
@@ -91,7 +107,12 @@ def world(held, last=None) -> dict:
     files = [{"file": path, "lines": len(text.splitlines())}
              for path, text in sorted(held.files.items())]
     out = {"symbols": symbols, "uses": uses, "files": files,
-           "raises": _raises(held.files)}
+           "raises": _raises(held.files), "calls": _calls(held),
+           "params": [{"name": one.name, "file": one.file,
+                       "param": param if isinstance(param, str) else
+                       str((param or {}).get("name", ""))}
+                      for one in index.symbols.values()
+                      for param in one.params]}
     try:
         models = held.data()
     except Exception:                               # noqa: BLE001
